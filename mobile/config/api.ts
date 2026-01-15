@@ -27,7 +27,7 @@ const getApiBaseUrl = (): string => {
 
   // 프로덕션 환경
   // TODO: 프로덕션 URL 설정 필요
-  return 'https://api.todak-ai.com';
+  return 'https://api.emolog.com';
 };
 
 export const API_BASE_URL = getApiBaseUrl();
