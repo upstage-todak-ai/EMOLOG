@@ -246,6 +246,7 @@ export interface Insight {
   description: string;
   date_references: string[];
   evidence: string;
+  summary?: string; // 자연어 1줄 요약
 }
 
 /**

@@ -206,14 +206,9 @@ def create_weekly_report(request: ReportRequest):
             period_end=request.period_end
         )
         
-        # 리포트를 DB에 저장
+        # 리포트를 DB에 저장 (인사이트 요약 포함)
         try:
             insights_to_save = result.get("insights", [])
-            logger.info(f"[create_weekly_report] DB 저장할 insights 개수: {len(insights_to_save)}")
-            if insights_to_save:
-                for idx, insight in enumerate(insights_to_save, 1):
-                    logger.info(f"[create_weekly_report] 저장할 insight {idx}: type={insight.get('type', 'unknown')}, dates={insight.get('date_references', [])}")
-            
             report_repo = get_report_repository()
             saved_report = report_repo.create(
                 user_id=request.user_id,
@@ -225,8 +220,7 @@ def create_weekly_report(request: ReportRequest):
                 eval_score=result.get("eval_score", 0.0),
                 attempt=result.get("attempt", 0)
             )
-            logger.info(f"[create_weekly_report] 리포트 DB 저장 완료 - report_id={saved_report.get('id')}, user_id={request.user_id}")
-            logger.info(f"[create_weekly_report] 저장된 insights 개수: {len(saved_report.get('insights', []))}")
+            logger.info(f"[create_weekly_report] 리포트 DB 저장 완료 - report_id={saved_report.get('id')}, user_id={request.user_id}, insights_count={len(saved_report.get('insights', []))}")
         except ValueError as e:
             # Firebase 미설정 등으로 저장 실패해도 리포트는 반환 (로그만 남김)
             logger.warning(f"[create_weekly_report] 리포트 DB 저장 실패 (리포트는 반환): {e}")

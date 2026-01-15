@@ -1,16 +1,18 @@
 """
 리포트 생성 오케스트레이션 서비스
 
-인사이트 추출 → 문장 작성 → 평가 → 재작성 흐름을 관리
+인사이트 추출 → (리포트 생성 + 인사이트 요약) 병렬 처리 → 평가 → 재작성 흐름을 관리
 """
 from datetime import datetime, timedelta
 from typing import Optional, List
 from langgraph.graph import StateGraph, END
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from app.services.report.report_models import ReportGenerationState
 from app.services.report.report_insights import analyze_diary_data, find_insights
 from app.services.report.report_writer import write_report
 from app.services.report.report_judge import evaluate_report
+from app.services.report.report_insight_writer import summarize_insights_batch
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -79,6 +81,23 @@ def generate_weekly_report(
     
     logger.info(f"[generate_weekly_report] 인사이트 {len(insights)}개 추출 완료")
     
+    # 인사이트를 자연어 1줄 요약으로 변환 (배치 처리)
+    # 리포트 생성과 병렬 처리
+    original_insights = insights.copy()  # 원본 인사이트 백업
+    summarized_insights = None
+    
+    if insights:
+        logger.info(f"[generate_weekly_report] 인사이트 자연어 요약 중 (배치 처리)...")
+        try:
+            summarized_insights = summarize_insights_batch(insights)
+            logger.info(f"[generate_weekly_report] 인사이트 요약 완료")
+        except Exception as e:
+            logger.warning(f"[generate_weekly_report] 인사이트 요약 실패, 원본 사용: {e}")
+            summarized_insights = original_insights
+    
+    # 요약된 인사이트가 있으면 사용, 없으면 원본 사용
+    final_insights = summarized_insights if summarized_insights else original_insights
+    
     # 문장 작성 및 평가 결과 저장
     candidates = []
     
@@ -91,7 +110,7 @@ def generate_weekly_report(
             "diary_entries": diary_entries,
             "period_start": period_start,
             "period_end": period_end,
-            "insights": insights,
+            "insights": original_insights,  # 리포트 생성에는 원본 인사이트 사용 (날짜 정보 포함)
             "report": None,
             "summary": None
         }
@@ -127,16 +146,12 @@ def generate_weekly_report(
         # 수용 가능하면 즉시 반환
         if eval_result["is_acceptable"]:
             logger.info(f"[generate_weekly_report] ✅ 수용 가능한 리포트 생성 완료 (시도 {attempt + 1})")
-            logger.info(f"[generate_weekly_report] 반환할 insights 개수: {len(insights) if insights else 0}")
-            if insights:
-                for idx, insight in enumerate(insights, 1):
-                    logger.info(f"[generate_weekly_report] insight {idx}: type={insight.get('type', 'unknown')}, dates={insight.get('date_references', [])}")
             return {
                 "report": report,
                 "summary": summary,
                 "period_start": period_start,
                 "period_end": period_end,
-                "insights": insights,
+                "insights": final_insights,  # 요약된 인사이트 반환 (DB 저장용)
                 "eval_score": eval_result["overall_score"],
                 "attempt": attempt + 1
             }
@@ -154,7 +169,7 @@ def generate_weekly_report(
             "summary": best_candidate["summary"],
             "period_start": period_start,
             "period_end": period_end,
-            "insights": insights,
+            "insights": final_insights,  # 요약된 인사이트 반환
             "eval_score": best_candidate["eval"]["overall_score"],
             "attempt": best_candidate["attempt"]
         }
@@ -166,7 +181,7 @@ def generate_weekly_report(
         "summary": "리포트 작성에 실패했습니다",
         "period_start": period_start,
         "period_end": period_end,
-        "insights": insights,
+        "insights": final_insights if 'final_insights' in locals() else original_insights,  # 요약된 인사이트 반환
         "eval_score": 0.0,
         "attempt": 1 + max_retries
     }

@@ -105,8 +105,6 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
       
       // 리포트 설정 (있으면 표시)
       if (latestReport) {
-        console.log('[리포트 로드] DB에서 조회한 리포트:', latestReport);
-        console.log('[리포트 로드] insights:', latestReport.insights);
         setReport({
           title: '감정 레포트',
           content: latestReport.report || '',
@@ -175,7 +173,6 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
       });
 
       // 리포트 업데이트
-      console.log('[리포트 생성] 생성된 리포트 insights:', result.insights);
       setReport({
         title: '감정 레포트',
         content: result.report || '리포트 생성에 실패했습니다.',
@@ -191,7 +188,6 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
         await new Promise(resolve => setTimeout(resolve, 500)); // DB 저장 대기
         const latestReport = await getLatestReport(userId);
         if (latestReport) {
-          console.log('[리포트 생성] DB에서 조회한 리포트 insights:', latestReport.insights);
           setReport({
             title: '감정 레포트',
             content: latestReport.report || '',
@@ -459,67 +455,6 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
                   <Text style={styles.insightsButtonText}>근거보기</Text>
                 </TouchableOpacity>
               )}
-              
-              {/* 근거 메모 목록 */}
-              {report?.content && (() => {
-                // 디버깅: insights 확인
-                console.log('[근거 메모] report.insights:', report.insights);
-                
-                // 모든 insights에서 date_references 수집 및 중복 제거
-                const allDates = new Set<string>();
-                if (report.insights && Array.isArray(report.insights) && report.insights.length > 0) {
-                  report.insights.forEach((insight: any) => {
-                    console.log('[근거 메모] insight:', insight);
-                    if (insight && insight.date_references && Array.isArray(insight.date_references)) {
-                      insight.date_references.forEach((date: string) => {
-                        if (date && typeof date === 'string') {
-                          allDates.add(date);
-                        }
-                      });
-                    }
-                  });
-                }
-                const sortedDates = Array.from(allDates).sort();
-                
-                console.log('[근거 메모] 수집된 날짜들:', sortedDates);
-                
-                if (sortedDates.length > 0) {
-                  return (
-                    <View style={styles.evidenceSection}>
-                      <Text style={styles.evidenceTitle}>이 메모들을 바탕으로 작성했어요!</Text>
-                      <View style={styles.evidenceDateList}>
-                        {sortedDates.map((date, index) => (
-                          <TouchableOpacity
-                            key={date}
-                            style={styles.evidenceDateButton}
-                            onPress={async () => {
-                              try {
-                                setSelectedEvidenceDate(date);
-                                const journals = await getAllJournals();
-                                const journal = journals.find(j => j.date === date);
-                                if (journal) {
-                                  setEvidenceJournal({
-                                    date: date,
-                                    content: journal.content || '',
-                                  });
-                                } else {
-                                  Alert.alert('알림', '해당 날짜의 메모를 찾을 수 없습니다.');
-                                }
-                              } catch (error) {
-                                console.error('메모 가져오기 실패:', error);
-                                Alert.alert('오류', '메모를 불러오는데 실패했습니다.');
-                              }
-                            }}
-                          >
-                            <Text style={styles.evidenceDateText}>[{index + 1}] {date}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-                  );
-                }
-                return null;
-              })()}
             </View>
           </>
         )}
@@ -545,81 +480,54 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
             </View>
             <ScrollView style={styles.modalScrollView}>
               {report?.insights && report.insights.length > 0 ? (
-                report.insights.map((insight, index) => (
-                  <View key={index} style={styles.insightItem}>
-                    <View style={styles.insightHeader}>
-                      <View style={styles.insightTypeBadge}>
-                        <Text style={styles.insightTypeText}>
-                          {insight.type === 'time_contrast' ? '시간 대비' :
-                           insight.type === 'repetition' ? '반복 패턴' :
-                           insight.type === 'causal_relation' ? '인과 관계' : insight.type}
+                <>
+                  {report.insights.map((insight, index) => (
+                    <View key={index} style={styles.insightItem}>
+                      {/* 자연어 1줄 요약과 날짜 버튼을 같은 줄에 배치 */}
+                      <View style={styles.insightRow}>
+                        <Text style={styles.insightSummary} numberOfLines={1} ellipsizeMode="tail">
+                          {insight.summary || insight.description}
                         </Text>
+                        {/* 날짜를 [1] [2] 형태로 텍스트 옆에 표시 */}
+                        {insight.date_references && insight.date_references.length > 0 && (
+                          <View style={styles.insightDateButtons}>
+                            {insight.date_references.map((date, dateIndex) => (
+                              <TouchableOpacity
+                                key={dateIndex}
+                                style={styles.insightDateButton}
+                                onPress={async () => {
+                                  try {
+                                    const journals = await getAllJournals();
+                                    const journal = journals.find(j => j.date === date);
+                                    if (journal && journal.content) {
+                                      Alert.alert(
+                                        date,
+                                        journal.content,
+                                        [{ text: '확인', style: 'default' }]
+                                      );
+                                    } else {
+                                      Alert.alert('알림', '해당 날짜의 메모를 찾을 수 없습니다.');
+                                    }
+                                  } catch (error) {
+                                    console.error('메모 가져오기 실패:', error);
+                                    Alert.alert('오류', '메모를 불러오는데 실패했습니다.');
+                                  }
+                                }}
+                              >
+                                <Text style={styles.insightDateButtonText}>[{dateIndex + 1}]</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
                       </View>
                     </View>
-                    <Text style={styles.insightDescription}>{insight.description}</Text>
-                    {insight.evidence && (
-                      <Text style={styles.insightEvidence}>💡 {insight.evidence}</Text>
-                    )}
-                    {insight.date_references && insight.date_references.length > 0 && (
-                      <View style={styles.insightDates}>
-                        <Text style={styles.insightDatesLabel}>관련 날짜:</Text>
-                        {insight.date_references.map((date, dateIndex) => (
-                          <TouchableOpacity
-                            key={dateIndex}
-                            style={styles.dateTag}
-                            onPress={() => {
-                              // 날짜 클릭 시 해당 날짜의 일기로 이동할 수 있도록 (나중에 구현 가능)
-                              Alert.alert('날짜', date);
-                            }}
-                          >
-                            <Text style={styles.dateTagText}>{date}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                ))
+                  ))}
+                </>
               ) : (
                 <Text style={styles.noInsightsText}>근거 데이터가 없습니다.</Text>
               )}
             </ScrollView>
           </View>
-          </View>
-        </Modal>
-        
-        {/* 근거 메모 모달 */}
-        <Modal
-          visible={evidenceJournal !== null}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => {
-            setEvidenceJournal(null);
-            setSelectedEvidenceDate(null);
-          }}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>근거 메모</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setEvidenceJournal(null);
-                    setSelectedEvidenceDate(null);
-                  }}
-                  style={styles.modalCloseButton}
-                >
-                  <Ionicons name="close" size={24} color="#64748b" />
-                </TouchableOpacity>
-              </View>
-              <ScrollView style={styles.modalScrollView}>
-                {evidenceJournal && (
-                  <>
-                    <Text style={styles.evidenceDateLabel}>{evidenceJournal.date}</Text>
-                    <Text style={styles.evidenceContent}>{evidenceJournal.content}</Text>
-                  </>
-                )}
-              </ScrollView>
-            </View>
           </View>
         </Modal>
         
@@ -1000,9 +908,39 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#e5e7eb',
+  },
+  insightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'nowrap',
+    gap: 8,
+  },
+  insightSummary: {
+    fontSize: 15,
+    color: '#1e293b',
+    lineHeight: 22,
+    fontWeight: '500',
+    flex: 1,
+    flexShrink: 1,
+  },
+  insightDateButtons: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    gap: 6,
+  },
+  insightDateButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  insightDateButtonText: {
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '500',
   },
   insightHeader: {
     flexDirection: 'row',
@@ -1106,5 +1044,35 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#334155',
     lineHeight: 24,
+  },
+  modalEvidenceSection: {
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  modalEvidenceTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 12,
+  },
+  modalEvidenceDateList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  modalEvidenceDateButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  modalEvidenceDateText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#4f46e5',
   },
 });
