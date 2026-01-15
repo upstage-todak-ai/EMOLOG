@@ -6,7 +6,7 @@ LangGraph 기반 report 서비스를 호출하는 FastAPI 라우터
 from fastapi import APIRouter, HTTPException
 import time
 from app.models.schemas import ReportRequest, ReportResponse
-from app.service.report_service import generate_weekly_report
+from app.services.report.report_service import generate_weekly_report
 from app.core.logging import get_logger, log_api_request
 
 # 라우터 생성 (prefix: /api/report)
