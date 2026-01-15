@@ -75,12 +75,6 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
     }
   };
 
-  const handleEmotionPress = (emotion: Emotion) => {
-    setModalVisible(false);
-    requestAnimationFrame(() => {
-      onNavigateToJournalWrite(emotion, selectedDate || undefined, selectedJournal);
-    });
-  };
 
   // 일기 삭제
   const handleDeleteJournal = async (journal: JournalEntry) => {
@@ -306,9 +300,10 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
       <TouchableOpacity
         style={styles.fab}
         onPress={() => {
-          setSelectedDate(null);
-          setSelectedJournal(null);
-          setModalVisible(true);
+          // 감정 선택 없이 바로 메모 작성 화면으로 이동
+          // 기본 감정으로 CALM(평온) 사용
+          const defaultEmotion: Emotion = { label: '평온', icon: 'leaf', color: '#a5b4fc' };
+          onNavigateToJournalWrite(defaultEmotion);
         }}
         activeOpacity={0.8}
       >
@@ -320,7 +315,7 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
         </LinearGradient>
       </TouchableOpacity>
 
-      {/* 감정 선택 모달 */}
+      {/* 기존 일기 보기 모달 (날짜 클릭 시) */}
       <Modal
         visible={modalVisible}
         transparent
@@ -341,8 +336,8 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
                   </>
                 ) : (
                   <>
-                    <Text style={styles.modalTitle}>지금 어떤 기분인가요?</Text>
-                    <Text style={styles.modalSubtitle}>감정을 먼저 골라주세요</Text>
+                    <Text style={styles.modalTitle}>메모 작성</Text>
+                    <Text style={styles.modalSubtitle}>새로운 메모를 작성하세요</Text>
                   </>
                 )}
               </View>
@@ -375,18 +370,24 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
                 </TouchableOpacity>
               </View>
             ) : (
-              <View style={styles.emojiGrid}>
-                {emotions.map((emotion, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={styles.emojiButton}
-                    onPress={() => handleEmotionPress(emotion)}
-                    activeOpacity={0.7}
+              <View style={styles.journalContentContainer}>
+                <TouchableOpacity
+                  style={styles.editButton}
+                  onPress={() => {
+                    setModalVisible(false);
+                    const defaultEmotion: Emotion = { label: '평온', icon: 'leaf', color: '#a5b4fc' };
+                    requestAnimationFrame(() => {
+                      onNavigateToJournalWrite(defaultEmotion, selectedDate || undefined);
+                    });
+                  }}
+                >
+                  <LinearGradient
+                    colors={['#3B82F6', '#8B5CF6']}
+                    style={styles.editButtonGradient}
                   >
-                    <Ionicons name={emotion.icon as any} size={48} color={emotion.color} />
-                    <Text style={styles.emojiLabel}>{emotion.label}</Text>
-                  </TouchableOpacity>
-                ))}
+                    <Text style={styles.editButtonText}>메모 작성하기</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
               </View>
             )}
           </View>

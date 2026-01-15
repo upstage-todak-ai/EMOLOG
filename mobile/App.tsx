@@ -27,21 +27,23 @@ export default function App() {
     return <StatsScreen onBack={() => setCurrentScreen('home')} />;
   }
 
-  if (currentScreen === 'journalWrite' && selectedEmotion) {
+  if (currentScreen === 'journalWrite') {
     return (
       <JournalWriteScreen
-        emotion={selectedEmotion}
+        emotion={selectedEmotion || { label: '평온', icon: 'leaf', color: '#a5b4fc' }}
         selectedDate={selectedDate}
         existingJournal={existingJournal}
         onBack={() => {
           setCurrentScreen('home');
           setSelectedDate(undefined);
+          setSelectedEmotion(null);
           setExistingJournal(null);
           setRefreshKey(prev => prev + 1);
         }}
         onSave={() => {
           setCurrentScreen('home');
           setSelectedDate(undefined);
+          setSelectedEmotion(null);
           setExistingJournal(null);
           setRefreshKey(prev => prev + 1);
         }}
