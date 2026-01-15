@@ -37,8 +37,8 @@ app.include_router(diary.router)
 app.include_router(stats.router)
 app.include_router(log.router)
 app.include_router(calendar.router)
-app.include_router(extractor.router)
-app.include_router(report.router)
+# app.include_router(extractor.router)
+# app.include_router(report.router)
 
 # 정적 파일 서빙 설정 (React 빌드 결과물)
 frontend_dist = Path(__file__).parent / "frontend" / "dist"
