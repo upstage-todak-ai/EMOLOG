@@ -1,7 +1,7 @@
 [project]
-name = "todak-ai"
+name = "emolog"
 version = "0.1.0"
-description = "Add your description here"
+description = "EmoLog 일기 앱 백엔드 API"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

@@ -68,6 +68,7 @@ firebase-credentials/*.pem
 # Jupyter Notebook
 .ipynb_checkpoints
 *.ipynb
+!notebooks/*.ipynb
 
 # Testing
 .pytest_cache/

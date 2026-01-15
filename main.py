@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import diary, stats, log, calendar
+# extractor, report는 langgraph가 필요하므로 일단 주석 처리
+# from app.api.routes import extractor, report
 from app.core.firebase import initialize_firebase
 from app.core.logging import setup_logging
 
@@ -9,8 +11,8 @@ setup_logging()
 
 # FastAPI 앱 생성 (서버의 심장)
 app = FastAPI(
-    title="Todak-AI Backend",
-    description="토닥이 AI 일기 앱 백엔드 API",
+    title="EmoLog Backend",
+    description="EmoLog 일기 앱 백엔드 API",
     version="0.1.0"
 )
 
@@ -32,14 +34,18 @@ app.include_router(diary.router)
 app.include_router(stats.router)
 app.include_router(log.router)
 app.include_router(calendar.router)
+# app.include_router(extractor.router)
+# app.include_router(report.router)
 
 @app.get("/")
 def read_root():
     """
     루트 경로 (/) 접속 시 보여줄 메시지
-    서버가 잘 돌아가는지 확인하는 용도
     """
-    return {"message": "Todak-AI Backend is running!"}
+    return {
+        "message": "EmoLog Backend is running!",
+        "version": "0.1.0"
+    }
 
 @app.get("/health")
 def health_check():
