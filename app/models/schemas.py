@@ -177,9 +177,18 @@ class ReportRequest(BaseModel):
     period_start: Optional[str] = None  # 리포트 기간 시작일 "YYYY-MM-DD" (선택)
     period_end: Optional[str] = None  # 리포트 기간 종료일 "YYYY-MM-DD" (선택)
 
+class InsightResponse(BaseModel):
+    """인사이트 응답 모델"""
+    type: str  # 'time_contrast' | 'repetition' | 'causal_relation'
+    description: str  # 인사이트 설명
+    date_references: List[str]  # 관련 날짜 리스트
+    evidence: str  # 근거 설명
+
 class ReportResponse(BaseModel):
     """리포트 생성 응답 모델"""
     report: str  # 생성된 리포트 내용
     summary: str  # 리포트 요약
     period_start: str  # 리포트 기간 시작일
     period_end: str  # 리포트 기간 종료일
+    insights: Optional[List[dict]] = []  # 추출된 인사이트 리스트
+    created_at: Optional[str] = None  # 리포트 생성 일시 (ISO 형식)

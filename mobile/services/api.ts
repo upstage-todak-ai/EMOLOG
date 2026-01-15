@@ -257,6 +257,7 @@ export interface WeeklyReportResponse {
   period_start: string;
   period_end: string;
   insights: Insight[];
+  created_at?: string; // 리포트 생성 일시 (ISO 형식)
 }
 
 /**
@@ -283,6 +284,33 @@ export async function getLatestReport(userId: string): Promise<WeeklyReportRespo
   } catch (error) {
     console.error('리포트 조회 실패:', error);
     return null; // 에러가 나도 null 반환
+  }
+}
+
+/**
+ * 이전 리포트 조회
+ */
+export async function getPreviousReport(userId: string, created_at: string): Promise<WeeklyReportResponse | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/report/previous?user_id=${userId}&created_at=${encodeURIComponent(created_at)}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null; // 이전 리포트가 없음
+      }
+      const errorText = await response.text();
+      console.error('이전 리포트 조회 API 에러:', response.status, errorText);
+      return null;
+    }
+    return response.json();
+  } catch (error) {
+    console.error('이전 리포트 조회 실패:', error);
+    return null;
   }
 }
 

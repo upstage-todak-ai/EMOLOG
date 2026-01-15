@@ -1,7 +1,7 @@
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, ActivityIndicator, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { getStats, getReport, generateWeeklyReport, getLatestReport, DiaryEntryForReport, Insight } from '../services/api';
+import { getStats, getReport, generateWeeklyReport, getLatestReport, getPreviousReport, DiaryEntryForReport, Insight } from '../services/api';
 import { getUserId } from '../services/userService';
 import { getAllJournals } from '../services/journalService';
 import { emotionLabelToBackend } from '../utils/journalConverter';
@@ -27,16 +27,34 @@ const EMOTIONS: Emotion[] = [
   { label: '지침', icon: 'moon', color: '#a78bfa' },
 ];
 
+// 주제 설정
+type Topic = {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+};
+
+const TOPICS: Topic[] = [
+  { label: '학업', icon: 'book', color: '#3B82F6' },
+  { label: '대인관계', icon: 'people', color: '#10B981' },
+  { label: '건강', icon: 'heart', color: '#F59E0B' },
+  { label: '취미', icon: 'musical-notes', color: '#8B5CF6' },
+  { label: '일상', icon: 'calendar', color: '#64748b' },
+];
+
 export default function StatsScreen({ onBack }: StatsScreenProps) {
   const [stats, setStats] = useState<{
     emotion_stats: Array<{ emotion: string; count: number }>;
     topic_stats: Array<{ topic: string; count: number }>;
     total_count: number;
   } | null>(null);
-  const [report, setReport] = useState<{ title: string; content: string; insights?: Insight[] } | null>(null);
+  const [report, setReport] = useState<{ title: string; content: string; insights?: Insight[]; created_at?: string; period_start?: string; period_end?: string } | null>(null);
+  const [isLatestReport, setIsLatestReport] = useState(true); // 현재 리포트가 최신인지 여부
   const [loading, setLoading] = useState(true);
   const [generatingReport, setGeneratingReport] = useState(false);
   const [showInsightsModal, setShowInsightsModal] = useState(false);
+  const [selectedEvidenceDate, setSelectedEvidenceDate] = useState<string | null>(null);
+  const [evidenceJournal, setEvidenceJournal] = useState<{ date: string; content: string } | null>(null);
 
   useEffect(() => {
     loadStats();
@@ -87,13 +105,20 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
       
       // 리포트 설정 (있으면 표시)
       if (latestReport) {
+        console.log('[리포트 로드] DB에서 조회한 리포트:', latestReport);
+        console.log('[리포트 로드] insights:', latestReport.insights);
         setReport({
           title: '감정 레포트',
           content: latestReport.report || '',
           insights: latestReport.insights || [],
+          created_at: latestReport.created_at,
+          period_start: latestReport.period_start,
+          period_end: latestReport.period_end,
         });
+        setIsLatestReport(true); // 최신 리포트 로드 시
       } else {
         setReport(null);
+        setIsLatestReport(true);
       }
     } catch (error) {
       console.error('통계/리포트 로드 실패:', error);
@@ -149,24 +174,36 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
         diary_entries: diaryEntriesForReport,
       });
 
-      // 리포트 업데이트 및 재조회
+      // 리포트 업데이트
+      console.log('[리포트 생성] 생성된 리포트 insights:', result.insights);
       setReport({
         title: '감정 레포트',
         content: result.report || '리포트 생성에 실패했습니다.',
         insights: result.insights || [],
+        created_at: result.created_at,
+        period_start: result.period_start,
+        period_end: result.period_end,
       });
+      setIsLatestReport(true); // 새로 생성된 리포트는 최신
       
       // DB에서 최신 리포트 다시 조회 (화면 갱신)
       try {
+        await new Promise(resolve => setTimeout(resolve, 500)); // DB 저장 대기
         const latestReport = await getLatestReport(userId);
         if (latestReport) {
+          console.log('[리포트 생성] DB에서 조회한 리포트 insights:', latestReport.insights);
           setReport({
             title: '감정 레포트',
             content: latestReport.report || '',
             insights: latestReport.insights || [],
+            created_at: latestReport.created_at,
+            period_start: latestReport.period_start,
+            period_end: latestReport.period_end,
           });
+          setIsLatestReport(true);
         }
       } catch (error) {
+        console.error('[리포트 생성] 재조회 실패:', error);
         // 무시 (이미 리포트는 표시됨)
       }
 
@@ -195,7 +232,10 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
           <TouchableOpacity onPress={onBack} style={styles.backButton}>
             <Ionicons name="chevron-back" size={24} color="#1e293b" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>통계 및 리포트</Text>
+          <View>
+            <Text style={styles.headerTitle}>통계 및 리포트</Text>
+            <Text style={styles.headerSubtitle}>최근 1달</Text>
+          </View>
         </View>
       </View>
 
@@ -222,15 +262,30 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
               <View style={styles.statCard}>
                 <Text style={styles.statTitle}>주제별 통계</Text>
                 <View style={styles.statContent}>
-                  {topicData.map((item) => (
-                    <View key={item.topic} style={styles.statItem}>
-                      <View style={styles.statItemLeft}>
-                        <View style={[styles.statDot, { backgroundColor: getTopicColor(item.topic) }]} />
-                        <Text style={styles.statLabel}>{item.topic}</Text>
+                  {topicData.map((item) => {
+                    const percentage = totalCount > 0 ? (item.count / totalCount) * 100 : 0;
+                    const topicInfo = TOPICS.find(t => t.label === item.topic);
+                    return (
+                      <View key={item.topic} style={styles.emotionStatItem}>
+                        <View style={styles.emotionStatInfo}>
+                          <Ionicons name={topicInfo?.icon || 'ellipse'} size={20} color={topicInfo?.color || '#94a3b8'} />
+                          <Text style={styles.emotionStatLabel}>{item.topic}</Text>
+                        </View>
+                        <View style={styles.barContainer}>
+                          <View 
+                            style={[
+                              styles.bar, 
+                              { 
+                                width: `${percentage}%`, 
+                                backgroundColor: topicInfo?.color || '#94a3b8'
+                              }
+                            ]} 
+                          />
+                        </View>
+                        <Text style={styles.emotionStatCount}>{item.count}</Text>
                       </View>
-                      <Text style={styles.statValue}>{item.count}회</Text>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
               </View>
             )}
@@ -271,18 +326,92 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
             {/* 레포트 섹션 */}
             <View style={styles.reportCard}>
               <View style={styles.reportHeader}>
-                <Text style={styles.reportTitle}>감정 레포트</Text>
-                <TouchableOpacity
-                  style={[styles.testButton, generatingReport && styles.testButtonDisabled]}
-                  onPress={handleGenerateReport}
-                  disabled={generatingReport}
-                >
-                  {generatingReport ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={styles.testButtonText}>생성</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.reportTitle}>감정 레포트</Text>
+                  {report?.period_start && report?.period_end && (
+                    <Text style={styles.reportPeriodText}>
+                      {new Date(report.period_start).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} ~ {new Date(report.period_end).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
+                    </Text>
                   )}
-                </TouchableOpacity>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  {/* 이전 리포트 버튼 */}
+                  {!isLatestReport && report?.created_at && (
+                    <TouchableOpacity
+                      style={styles.navButton}
+                      onPress={async () => {
+                        try {
+                          const userId = await getUserId();
+                          if (!userId || !report?.created_at) return;
+                          
+                          const previousReport = await getPreviousReport(userId, report.created_at);
+                          if (previousReport) {
+                            setReport({
+                              title: '감정 레포트',
+                              content: previousReport.report || '',
+                              insights: previousReport.insights || [],
+                              created_at: previousReport.created_at,
+                              period_start: previousReport.period_start,
+                              period_end: previousReport.period_end,
+                            });
+                            setIsLatestReport(false); // 이전 리포트를 보면 더 이상 최신이 아님
+                          } else {
+                            Alert.alert('알림', '이전 리포트가 없습니다.');
+                          }
+                        } catch (error) {
+                          console.error('이전 리포트 조회 실패:', error);
+                          Alert.alert('오류', '이전 리포트를 불러오는데 실패했습니다.');
+                        }
+                      }}
+                    >
+                      <Ionicons name="chevron-back" size={20} color="#8B5CF6" />
+                    </TouchableOpacity>
+                  )}
+                  {/* 최신 리포트로 돌아가기 버튼 */}
+                  {!isLatestReport && (
+                    <TouchableOpacity
+                      style={styles.navButton}
+                      onPress={async () => {
+                        try {
+                          const userId = await getUserId();
+                          if (!userId) return;
+                          
+                          const latestReport = await getLatestReport(userId);
+                          if (latestReport) {
+                            setReport({
+                              title: '감정 레포트',
+                              content: latestReport.report || '',
+                              insights: latestReport.insights || [],
+                              created_at: latestReport.created_at,
+                              period_start: latestReport.period_start,
+                              period_end: latestReport.period_end,
+                            });
+                            setIsLatestReport(true);
+                          } else {
+                            Alert.alert('알림', '리포트가 없습니다.');
+                            setReport(null);
+                            setIsLatestReport(true);
+                          }
+                        } catch (error) {
+                          console.error('최신 리포트 조회 실패:', error);
+                        }
+                      }}
+                    >
+                      <Text style={styles.navButtonText}>최신</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={[styles.testButton, generatingReport && styles.testButtonDisabled]}
+                    onPress={handleGenerateReport}
+                    disabled={generatingReport}
+                  >
+                    {generatingReport ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.testButtonText}>생성</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <LinearGradient
@@ -313,7 +442,12 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
                       );
                     })()}
                   </>
-                ) : null}
+                ) : (
+                  <View style={styles.reportEmpty}>
+                    <Text style={styles.reportEmptyText}>리포트가 없습니다.</Text>
+                    <Text style={styles.reportEmptySubtext}>'생성' 버튼을 눌러 리포트를 만들어보세요.</Text>
+                  </View>
+                )}
               </LinearGradient>
 
               {report?.insights && report.insights.length > 0 && (
@@ -325,9 +459,67 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
                   <Text style={styles.insightsButtonText}>근거보기</Text>
                 </TouchableOpacity>
               )}
-              <Text style={styles.reportHint}>
-                💡 레포트는 AI가 당신의 감정 패턴을 분석하여 생성됩니다
-              </Text>
+              
+              {/* 근거 메모 목록 */}
+              {report?.content && (() => {
+                // 디버깅: insights 확인
+                console.log('[근거 메모] report.insights:', report.insights);
+                
+                // 모든 insights에서 date_references 수집 및 중복 제거
+                const allDates = new Set<string>();
+                if (report.insights && Array.isArray(report.insights) && report.insights.length > 0) {
+                  report.insights.forEach((insight: any) => {
+                    console.log('[근거 메모] insight:', insight);
+                    if (insight && insight.date_references && Array.isArray(insight.date_references)) {
+                      insight.date_references.forEach((date: string) => {
+                        if (date && typeof date === 'string') {
+                          allDates.add(date);
+                        }
+                      });
+                    }
+                  });
+                }
+                const sortedDates = Array.from(allDates).sort();
+                
+                console.log('[근거 메모] 수집된 날짜들:', sortedDates);
+                
+                if (sortedDates.length > 0) {
+                  return (
+                    <View style={styles.evidenceSection}>
+                      <Text style={styles.evidenceTitle}>이 메모들을 바탕으로 작성했어요!</Text>
+                      <View style={styles.evidenceDateList}>
+                        {sortedDates.map((date, index) => (
+                          <TouchableOpacity
+                            key={date}
+                            style={styles.evidenceDateButton}
+                            onPress={async () => {
+                              try {
+                                setSelectedEvidenceDate(date);
+                                const journals = await getAllJournals();
+                                const journal = journals.find(j => j.date === date);
+                                if (journal) {
+                                  setEvidenceJournal({
+                                    date: date,
+                                    content: journal.content || '',
+                                  });
+                                } else {
+                                  Alert.alert('알림', '해당 날짜의 메모를 찾을 수 없습니다.');
+                                }
+                              } catch (error) {
+                                console.error('메모 가져오기 실패:', error);
+                                Alert.alert('오류', '메모를 불러오는데 실패했습니다.');
+                              }
+                            }}
+                          >
+                            <Text style={styles.evidenceDateText}>[{index + 1}] {date}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  );
+                }
+                return null;
+              })()}
             </View>
           </>
         )}
@@ -392,11 +584,83 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
               )}
             </ScrollView>
           </View>
-        </View>
-      </Modal>
-    </View>
-  );
-}
+          </View>
+        </Modal>
+        
+        {/* 근거 메모 모달 */}
+        <Modal
+          visible={evidenceJournal !== null}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => {
+            setEvidenceJournal(null);
+            setSelectedEvidenceDate(null);
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>근거 메모</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setEvidenceJournal(null);
+                    setSelectedEvidenceDate(null);
+                  }}
+                  style={styles.modalCloseButton}
+                >
+                  <Ionicons name="close" size={24} color="#64748b" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.modalScrollView}>
+                {evidenceJournal && (
+                  <>
+                    <Text style={styles.evidenceDateLabel}>{evidenceJournal.date}</Text>
+                    <Text style={styles.evidenceContent}>{evidenceJournal.content}</Text>
+                  </>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+        
+        {/* 근거 메모 모달 */}
+        <Modal
+          visible={evidenceJournal !== null}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => {
+            setEvidenceJournal(null);
+            setSelectedEvidenceDate(null);
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>근거 메모</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setEvidenceJournal(null);
+                    setSelectedEvidenceDate(null);
+                  }}
+                  style={styles.modalCloseButton}
+                >
+                  <Ionicons name="close" size={24} color="#64748b" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.modalScrollView}>
+                {evidenceJournal && (
+                  <>
+                    <Text style={styles.evidenceDateLabel}>{evidenceJournal.date}</Text>
+                    <Text style={styles.evidenceContent}>{evidenceJournal.content}</Text>
+                  </>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      </View>
+    );
+  }
 
 const getTopicColor = (topic: string) => {
   const colors: Record<string, string> = {
@@ -426,6 +690,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     color: '#1e293b',
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#64748b',
+    marginTop: 2,
   },
   backButton: {
     width: 40,
@@ -591,6 +861,37 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#1e293b',
+  },
+  reportPeriodText: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  navButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+  },
+  navButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#8B5CF6',
+  },
+  reportEmpty: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportEmptyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+    marginBottom: 8,
+  },
+  reportEmptySubtext: {
+    fontSize: 14,
+    color: '#94a3b8',
+    textAlign: 'center',
   },
   periodSelector: {
     flexDirection: 'row',
@@ -764,5 +1065,46 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#94a3b8',
     marginTop: 40,
+  },
+  evidenceSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  evidenceTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+    marginBottom: 12,
+  },
+  evidenceDateList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  evidenceDateButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  evidenceDateText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#4f46e5',
+  },
+  evidenceDateLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 12,
+  },
+  evidenceContent: {
+    fontSize: 15,
+    color: '#334155',
+    lineHeight: 24,
   },
 });

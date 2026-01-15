@@ -129,6 +129,32 @@ class ReportRepository:
         """사용자의 최신 리포트 조회"""
         reports = self.get_by_user_id(user_id, limit=1)
         return reports[0] if reports else None
+    
+    def get_older_than(self, user_id: str, created_at: str) -> Optional[dict]:
+        """
+        특정 created_at보다 오래된 리포트 조회 (이전 리포트)
+        
+        Args:
+            user_id: 사용자 ID
+            created_at: 기준 created_at (ISO 형식)
+        
+        Returns:
+            바로 이전 리포트 (없으면 None)
+        """
+        try:
+            # 모든 리포트 가져오기
+            reports = self.get_by_user_id(user_id)
+            
+            # created_at 기준으로 정렬된 상태에서, 기준보다 오래된 것 중 가장 최신 것 찾기
+            for report in reports:
+                report_created_at = report.get("created_at", "")
+                if report_created_at and report_created_at < created_at:
+                    return report
+            
+            return None
+        except Exception as e:
+            logger.error(f"[get_older_than] 이전 리포트 조회 실패: {e}", exc_info=True)
+            raise
 
 
 # 싱글톤 패턴으로 저장소 인스턴스 관리

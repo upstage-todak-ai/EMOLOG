@@ -127,6 +127,10 @@ def generate_weekly_report(
         # 수용 가능하면 즉시 반환
         if eval_result["is_acceptable"]:
             logger.info(f"[generate_weekly_report] ✅ 수용 가능한 리포트 생성 완료 (시도 {attempt + 1})")
+            logger.info(f"[generate_weekly_report] 반환할 insights 개수: {len(insights) if insights else 0}")
+            if insights:
+                for idx, insight in enumerate(insights, 1):
+                    logger.info(f"[generate_weekly_report] insight {idx}: type={insight.get('type', 'unknown')}, dates={insight.get('date_references', [])}")
             return {
                 "report": report,
                 "summary": summary,
