@@ -143,3 +143,40 @@ class LogExtractResponse(BaseModel):
     """Log 추출 응답 모델"""
     topic: str  # 주제 (학업, 대인관계, 일상, 취미, 건강 등)
     emotion: Emotion  # 감정
+
+# ==========================================
+# Extractor 관련 모델 (LangGraph 버전)
+# ==========================================
+class ExtractorRequest(BaseModel):
+    """일기 정보 추출 요청 모델"""
+    content: str  # 일기 원본 내용
+    datetime: Optional[str] = None  # 일기 작성 시간 "YYYY-MM-DD HH:mm:ss" (선택)
+
+class ExtractorResponse(BaseModel):
+    """일기 정보 추출 응답 모델"""
+    topic: str  # 추출된 주제
+    emotion: str  # 추출된 감정
+    datetime: str  # 일기 작성 시간
+
+# ==========================================
+# Report 관련 모델 (LangGraph 버전)
+# ==========================================
+class DiaryEntryForReport(BaseModel):
+    """리포트 생성을 위한 일기 항목 모델"""
+    date: str  # 날짜 "YYYY-MM-DD"
+    content: str  # 일기 내용
+    topic: str  # 주제
+    emotion: str  # 감정
+
+class ReportRequest(BaseModel):
+    """리포트 생성 요청 모델"""
+    diary_entries: List[DiaryEntryForReport]  # extractor로 분석된 일기 항목 리스트
+    period_start: Optional[str] = None  # 리포트 기간 시작일 "YYYY-MM-DD" (선택)
+    period_end: Optional[str] = None  # 리포트 기간 종료일 "YYYY-MM-DD" (선택)
+
+class ReportResponse(BaseModel):
+    """리포트 생성 응답 모델"""
+    report: str  # 생성된 리포트 내용
+    summary: str  # 리포트 요약
+    period_start: str  # 리포트 기간 시작일
+    period_end: str  # 리포트 기간 종료일
