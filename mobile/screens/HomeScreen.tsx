@@ -1,9 +1,9 @@
 import { StatusBar } from 'expo-status-bar';
-import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, AppState, Alert } from 'react-native';
+import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, AppState, Alert, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState, useEffect, useRef } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { getAllJournals, getJournalByDate, deleteJournal } from '../services/journalService';
+import { getAllJournals, getJournalByDate, deleteJournal, batchExtractMissingLogs } from '../services/journalService';
 import { JournalEntry, Emotion } from '../types/journal';
 
 type HomeScreenProps = {
@@ -18,6 +18,8 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
   const [selectedJournal, setSelectedJournal] = useState<JournalEntry | null>(null);
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [isLogView, setIsLogView] = useState(false);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractingIds, setExtractingIds] = useState<Set<string>>(new Set());
 
   const appState = useRef(AppState.currentState);
 
@@ -43,10 +45,37 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
     };
   }, []);
 
-  const loadJournals = async () => {
+  const loadJournals = async (checkForExtraction: boolean = false) => {
     try {
       const allJournals = await getAllJournals();
       setJournals(allJournals);
+      
+      // 추출 체크가 필요한 경우 (Log 뷰로 전환할 때)
+      if (checkForExtraction) {
+        const needsExtraction = allJournals.filter(journal => {
+          const hasTopic = journal.topic && journal.topic.trim() !== '' && journal.topic.toLowerCase() !== 'none';
+          const hasEmotion = journal.emotion && journal.emotion.label.trim() !== '';
+          return !hasTopic || !hasEmotion;
+        });
+        
+        if (needsExtraction.length > 0) {
+          setIsExtracting(true);
+          const idsToExtract = new Set(needsExtraction.map(j => j.id));
+          setExtractingIds(idsToExtract);
+          
+          try {
+            await batchExtractMissingLogs(needsExtraction);
+            // 추출 완료 후 다시 로드
+            const updatedJournals = await getAllJournals();
+            setJournals(updatedJournals);
+          } catch (error) {
+            console.error('배치 추출 실패:', error);
+          } finally {
+            setIsExtracting(false);
+            setExtractingIds(new Set());
+          }
+        }
+      }
     } catch (error) {
       console.error('일기 불러오기 실패:', error);
     }
@@ -174,9 +203,11 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
           <Text style={styles.headerTitle}>EmoLog</Text>
           <View style={styles.headerButtons}>
             <TouchableOpacity
-              onPress={() => {
-                setIsLogView(!isLogView);
-                loadJournals();
+              onPress={async () => {
+                const newIsLogView = !isLogView;
+                setIsLogView(newIsLogView);
+                // Log 뷰로 전환할 때만 추출 실행
+                await loadJournals(newIsLogView);
               }}
               style={styles.headerButton}
             >
@@ -242,14 +273,22 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
                   const hasValidTopic = topic && topic.trim() !== '' && topic.toLowerCase() !== 'none';
                   // emotion이 있고 빈 문자열이 아닌지 확인
                   const hasValidEmotion = emotion && emotion.trim() !== '' && emotion.toLowerCase() !== 'none';
+                  const isCurrentlyExtracting = extractingIds.has(journal.id);
                   
                   return (
                     <View key={journal.id} style={styles.logCard}>
-                      {(hasValidTopic || hasValidEmotion) && (
+                      {isCurrentlyExtracting ? (
+                        <View style={styles.logTags}>
+                          <View style={[styles.tag, styles.extractingTag]}>
+                            <ActivityIndicator size="small" color="#94a3b8" style={{ marginRight: 8 }} />
+                            <Text style={[styles.tagText, { color: '#94a3b8' }]}>추출 중...</Text>
+                          </View>
+                        </View>
+                      ) : (hasValidTopic || hasValidEmotion) ? (
                         <View style={styles.logTags}>
                           {/* topic이 유효할 때만 표시 */}
                           {hasValidTopic && (
-                            <View style={[styles.tag, { backgroundColor: getTopicColor(topic) + '20', borderColor: getTopicColor(topic) + '40' }]}>
+                            <View style={[styles.tag, { backgroundColor: getTopicColor(topic) + '20', borderColor: getTopicColor(topic) + '40', marginRight: 8 }]}>
                               <Text style={[styles.tagText, { color: getTopicColor(topic) }]}>{topic}</Text>
                             </View>
                           )}
@@ -260,7 +299,7 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
                             </View>
                           )}
                         </View>
-                      )}
+                      ) : null}
                       <Text style={styles.logContent} numberOfLines={2}>
                         {journal.content || '내용이 없습니다.'}
                       </Text>
@@ -569,8 +608,11 @@ const styles = StyleSheet.create({
   },
   logTags: {
     flexDirection: 'row',
-    gap: 8,
     marginBottom: 8,
+  },
+  extractingTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   tag: {
     paddingHorizontal: 12,

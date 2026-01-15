@@ -29,6 +29,7 @@ export interface BackendDiaryCreate {
 export interface BackendDiaryUpdate {
   content?: string;
   emotion?: BackendEmotion;
+  topic?: string;
 }
 
 export interface BackendStatsResponse {
@@ -54,8 +55,8 @@ export interface BackendLogExtractRequest {
 }
 
 export interface BackendLogExtractResponse {
-  topic: string;
-  emotion: BackendEmotion;
+  topic: string | null;
+  emotion: BackendEmotion | null;
 }
 
 /**

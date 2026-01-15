@@ -9,6 +9,7 @@ import {
   createDiary, 
   updateDiary, 
   deleteDiary,
+  extractLog,
   BackendDiaryUpdate,
   BackendEmotion
 } from './api';
@@ -84,6 +85,10 @@ export const updateJournal = async (
       backendUpdates.emotion = emotionLabelToBackend(updates.emotion.label);
     }
     
+    if (updates.topic !== undefined) {
+      backendUpdates.topic = updates.topic;
+    }
+    
     const updated = await updateDiary(id, backendUpdates);
     return backendToJournalEntry(updated);
   } catch (error) {
@@ -119,4 +124,54 @@ export const deleteJournalByDate = async (date: string): Promise<boolean> => {
     console.error('일기 삭제 실패:', error);
     return false;
   }
+};
+
+/**
+ * 빈 감정/주제가 있는 일기들을 배치로 추출
+ */
+export const batchExtractMissingLogs = async (journals: JournalEntry[]): Promise<number> => {
+  let extractedCount = 0;
+  
+  for (const journal of journals) {
+    // topic이나 emotion이 없거나 빈 값이면 추출
+    const needsExtraction = 
+      !journal.topic || 
+      journal.topic.trim() === '' || 
+      journal.topic.toLowerCase() === 'none' ||
+      !journal.emotion ||
+      journal.emotion.label.trim() === '';
+    
+    if (needsExtraction && journal.content) {
+      try {
+        const result = await extractLog(journal.content);
+        
+        // 업데이트할 내용 준비
+        const updates: Partial<Omit<JournalEntry, 'id' | 'createdAt' | 'updatedAt'>> = {};
+        
+        if (result.topic) {
+          updates.topic = result.topic;
+        }
+        
+        if (result.emotion) {
+          // BackendEmotion을 Emotion으로 변환
+          const emotionMap: Record<string, Emotion> = {
+            'JOY': { label: '기쁨', icon: 'sunny', color: '#fcd34d' },
+            'CALM': { label: '평온', icon: 'leaf', color: '#a5b4fc' },
+            'SADNESS': { label: '슬픔', icon: 'rainy', color: '#93c5fd' },
+            'ANGER': { label: '화남', icon: 'flame', color: '#fca5a5' },
+            'ANXIETY': { label: '불안', icon: 'alert-circle', color: '#fdba74' },
+            'EXHAUSTED': { label: '지침', icon: 'moon', color: '#a78bfa' },
+          };
+          updates.emotion = emotionMap[result.emotion] || journal.emotion;
+        }
+        
+        await updateJournal(journal.id, updates);
+        extractedCount++;
+      } catch (error) {
+        console.error(`일기 ${journal.id} 추출 실패:`, error);
+      }
+    }
+  }
+  
+  return extractedCount;
 };
