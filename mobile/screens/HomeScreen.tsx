@@ -198,6 +198,15 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
             >
               <Ionicons name="settings" size={24} color="#64748b" />
             </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                console.log('개발자 버튼 클릭');
+                // 개발자 기능 추가 가능
+              }}
+              style={styles.headerButton}
+            >
+              <Ionicons name="code" size={24} color="#64748b" />
+            </TouchableOpacity>
           </View>
         </View>
       </View>
