@@ -334,3 +334,37 @@ export async function generateWeeklyReport(request: WeeklyReportRequest): Promis
   }
   return response.json();
 }
+
+/**
+ * 알림 테스트 응답
+ */
+export interface NotificationTestResponse {
+  should_send: boolean;
+  send_time: string | null;
+  message: string | null;
+  reason: string;
+  evaluation_score: number;
+}
+
+/**
+ * 알림 테스트
+ */
+export async function testNotification(userId: string, currentTime?: string): Promise<NotificationTestResponse> {
+  let url = `${API_BASE_URL}/api/notification/test?user_id=${userId}`;
+  if (currentTime) {
+    url += `&current_time=${encodeURIComponent(currentTime)}`;
+  }
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('알림 테스트 API 에러:', response.status, errorText);
+    throw new Error(`알림 테스트 실패: ${errorText}`);
+  }
+  return response.json();
+}

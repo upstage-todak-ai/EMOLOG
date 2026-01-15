@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import diary, stats, log, calendar, extractor, report
+from app.api.routes import diary, stats, log, calendar, extractor, report, notification
 from app.core.firebase import initialize_firebase
 from app.core.logging import setup_logging
 
@@ -34,6 +34,7 @@ app.include_router(log.router)
 app.include_router(calendar.router)
 app.include_router(extractor.router)
 app.include_router(report.router)
+app.include_router(notification.router)
 
 @app.get("/")
 def read_root():
