@@ -70,7 +70,7 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
       
       // 통계와 리포트 병렬 로드
       const [statsData, latestReport] = await Promise.all([
-        getStats(userId, 'week').catch(() => null), // 에러가 나도 null
+        getStats(userId, 'month').catch(() => null), // 에러가 나도 null
         getLatestReport(userId), // 에러가 나도 null
       ]);
       
@@ -411,7 +411,7 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
               </View>
 
               <LinearGradient
-                colors={['#F3E8FF', '#FCE7F3']}
+                colors={['rgba(128, 128, 128, 0.08)', 'rgba(128, 128, 128, 0.05)']}
                 style={styles.reportContent}
               >
                 {generatingReport ? (
@@ -451,8 +451,8 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
                   style={styles.insightsButton}
                   onPress={() => setShowInsightsModal(true)}
                 >
-                  <Ionicons name="information-circle-outline" size={20} color="#8B5CF6" />
-                  <Text style={styles.insightsButtonText}>근거보기</Text>
+                  <Ionicons name="information-circle-outline" size={20} color="#64748b" />
+                  <Text style={styles.insightsButtonText}>이 메모들을 바탕으로 작성됐어요!</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -485,7 +485,7 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
                     <View key={index} style={styles.insightItem}>
                       {/* 자연어 1줄 요약과 날짜 버튼을 같은 줄에 배치 */}
                       <View style={styles.insightRow}>
-                        <Text style={styles.insightSummary} numberOfLines={1} ellipsizeMode="tail">
+                        <Text style={styles.insightSummary}>
                           {insight.summary || insight.description}
                         </Text>
                         {/* 날짜를 [1] [2] 형태로 텍스트 옆에 표시 */}
@@ -755,7 +755,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 12,
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#94a3b8',
   },
   testButtonDisabled: {
     opacity: 0.6,
@@ -858,20 +858,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f3e8ff',
+    backgroundColor: '#f1f5f9',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 12,
     marginTop: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#e9d5ff',
+    borderColor: '#e2e8f0',
   },
   insightsButtonText: {
     marginLeft: 8,
     fontSize: 15,
     fontWeight: '600',
-    color: '#8B5CF6',
+    color: '#64748b',
   },
   modalOverlay: {
     flex: 1,
@@ -914,8 +914,8 @@ const styles = StyleSheet.create({
   },
   insightRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'nowrap',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
     gap: 8,
   },
   insightSummary: {
