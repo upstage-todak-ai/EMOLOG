@@ -37,11 +37,16 @@ class DiaryRepository:
         NOT (generated_id, document_reference)
         The document ID must be obtained from document_reference.id
         """
+        # emotion이 None이면 에러 (extractor에서 추출되어야 함)
+        if diary.emotion is None:
+            raise ValueError("emotion이 설정되지 않았습니다. extractor로 추출해야 합니다.")
+        
         diary_dict = {
             "user_id": diary.user_id,
             "date": diary.date.isoformat() if isinstance(diary.date, datetime) else diary.date,
             "content": diary.content,
             "emotion": diary.emotion.value,
+            "topic": diary.topic if diary.topic else "",  # topic 저장
             "created_at": datetime.now().isoformat(),
         }
         
@@ -170,6 +175,7 @@ class DiaryRepository:
             date=data["date"],
             content=data["content"],
             emotion=data["emotion"],
+            topic=data.get("topic", ""),  # topic 읽기 (기존 데이터 호환성)
             created_at=datetime.fromisoformat(data.get("created_at", datetime.now().isoformat())),
         )
 

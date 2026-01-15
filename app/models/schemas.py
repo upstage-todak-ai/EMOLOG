@@ -23,7 +23,8 @@ class DiaryEntryBase(BaseModel):
     user_id: str
     date: datetime
     content: str
-    emotion: Emotion
+    emotion: Optional[Emotion] = None  # emotion이 없으면 extractor로 추출
+    topic: Optional[str] = None  # 추출된 주제 (선택사항)
 
 class DiaryEntryCreate(DiaryEntryBase):
     """일기 생성 요청 모델 (프론트엔드에서 받을 때)"""

@@ -50,7 +50,8 @@ export const createJournal = async (
 ): Promise<JournalEntry> => {
   try {
     const userId = getUserId();
-    const backendEntry = journalEntryToBackend(entry, userId);
+    // 새로 생성할 때는 emotion을 보내지 않아서 extractor가 자동으로 추출하도록 함
+    const backendEntry = journalEntryToBackend(entry, userId, true);
     const created = await createDiary(backendEntry);
     return backendToJournalEntry(created);
   } catch (error) {
