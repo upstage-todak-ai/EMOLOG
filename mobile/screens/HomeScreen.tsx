@@ -25,6 +25,7 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
   const [isLogView, setIsLogView] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractingIds, setExtractingIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
   const [selectedMemoForAction, setSelectedMemoForAction] = useState<JournalEntry | null>(null);
   const [pressedCardId, setPressedCardId] = useState<string | null>(null);
   const tagAnimations = useRef<Map<string, Animated.Value>>(new Map());
@@ -107,6 +108,7 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
 
   const loadJournals = async (checkForExtraction: boolean = false) => {
     try {
+      setLoading(true);
       const allJournals = await getAllJournals();
       setJournals(allJournals);
       
@@ -138,6 +140,8 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
       }
     } catch (error) {
       console.error('일기 불러오기 실패:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -366,11 +370,19 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* 빈 상태 */}
-        {journals.length === 0 && (
+        {/* 로딩 중 */}
+        {loading && journals.length === 0 && (
           <View style={styles.emptyState}>
             <View style={styles.emptyIconContainer}>
-              <Text style={styles.emptyIcon}>💭</Text>
+              <ActivityIndicator size="large" color="#3B82F6" />
+            </View>
+          </View>
+        )}
+        
+        {/* 빈 상태 */}
+        {!loading && journals.length === 0 && (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconContainer}>
             </View>
             <Text style={styles.emptyTitle}>오늘의 감정을 기록해보세요</Text>
             <Text style={styles.emptySubtitle}>
@@ -485,12 +497,9 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
         }}
         activeOpacity={0.8}
       >
-        <LinearGradient
-          colors={['#3B82F6', '#8B5CF6']}
-          style={styles.fabGradient}
-        >
+        <View style={styles.fabButton}>
           <Ionicons name="add" size={28} color="#fff" />
-        </LinearGradient>
+        </View>
       </TouchableOpacity>
 
       {/* 기존 일기 보기 모달 (날짜 클릭 시) */}
@@ -543,7 +552,7 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
                   }}
                 >
                   <LinearGradient
-                    colors={['#3B82F6', '#8B5CF6']}
+                    colors={['#94a3b8', '#cbd5e1']}
                     style={styles.editButtonGradient}
                   >
                     <Text style={styles.editButtonText}>수정하기</Text>
@@ -563,7 +572,7 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
                   }}
                 >
                   <LinearGradient
-                    colors={['#3B82F6', '#8B5CF6']}
+                    colors={['#94a3b8', '#cbd5e1']}
                     style={styles.editButtonGradient}
                   >
                     <Text style={styles.editButtonText}>메모 작성하기</Text>
@@ -869,21 +878,19 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 24,
     right: 24,
+  },
+  fabButton: {
     width: 56,
     height: 56,
-    borderRadius: 28,
+    borderRadius: 12,
+    backgroundColor: '#475569',
+    justifyContent: 'center',
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
-  },
-  fabGradient: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   modalOverlay: {
     flex: 1,

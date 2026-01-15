@@ -240,11 +240,16 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {totalCount === 0 ? (
+        {loading ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIconContainer}>
-              <Text style={styles.emptyIcon}>📊</Text>
+              <ActivityIndicator size="large" color="#3B82F6" />
             </View>
+          </View>
+        ) : totalCount === 0 ? (
+          <View style={styles.emptyState}>
+              <View style={styles.emptyIconContainer}>
+              </View>
             <Text style={styles.emptyTitle}>아직 데이터가 없어요</Text>
             <Text style={styles.emptySubtitle}>
               감정 메모를 작성하면{'\n'}
