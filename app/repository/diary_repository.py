@@ -125,6 +125,8 @@ class DiaryRepository:
             update_dict["content"] = updates.content
         if updates.emotion is not None:
             update_dict["emotion"] = updates.emotion.value
+        if updates.topic is not None:
+            update_dict["topic"] = updates.topic
         
         if not update_dict:
             # 수정할 내용이 없으면 기존 문서 반환

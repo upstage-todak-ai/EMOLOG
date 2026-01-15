@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from typing import List
 from datetime import datetime
 import time
@@ -13,56 +13,76 @@ router = APIRouter(prefix="/api/diary", tags=["diary"])
 logger = get_logger(__name__)
 
 
+def _extract_and_update_diary(diary_id: str, diary_content: str, diary_datetime: str):
+    """백그라운드에서 일기 정보 추출 및 업데이트"""
+    try:
+        logger.info(f"[_extract_and_update_diary] 🔍 백그라운드 추출 시작 - diary_id={diary_id}")
+        
+        extracted = extract_diary_info(
+            diary_content=diary_content,
+            diary_datetime=diary_datetime
+        )
+        
+        logger.info(f"[_extract_and_update_diary] 📦 Extractor 반환값: {extracted}")
+        
+        # 추출된 emotion을 Emotion enum으로 변환
+        emotion_str = extracted.get("emotion", "").strip().upper()
+        try:
+            emotion = Emotion[emotion_str]
+        except (KeyError, AttributeError):
+            emotion = Emotion.CALM
+        
+        topic = extracted.get("topic", "")
+        
+        # 일기 업데이트
+        repository = get_diary_repository()
+        updates = DiaryEntryUpdate(
+            emotion=emotion,
+            topic=topic,
+            content=None  # content는 업데이트하지 않음
+        )
+        
+        updated = repository.update(diary_id, updates)
+        
+        logger.info(f"[_extract_and_update_diary] ✅ 추출 및 업데이트 완료 - diary_id={diary_id}, topic={topic}, emotion={emotion.value}")
+    except Exception as e:
+        logger.error(f"[_extract_and_update_diary] ❌ 추출 실패: {e}", exc_info=True)
+
+
 @router.post("/", response_model=DiaryEntry, status_code=201)
-def create_diary(diary: DiaryEntryCreate):
+def create_diary(diary: DiaryEntryCreate, background_tasks: BackgroundTasks):
     """
     일기 생성 API
     
     프론트엔드에서 사용자가 일기를 작성하면 이 API로 전송됩니다.
+    emotion이 없으면 기본값으로 저장하고, 백그라운드에서 추출하여 업데이트합니다.
     
     - **user_id**: 사용자 ID
     - **date**: 일기 작성 날짜/시간
     - **content**: 일기 내용
-    - **emotion**: 감정 타입 (JOY, CALM, SADNESS, ANGER, ANXIETY, EXHAUSTED)
+    - **emotion**: 감정 타입 (선택사항, 없으면 추출)
     """
     start_time = time.time()
     try:
-        # emotion이 없으면 extractor로 자동 추출
+        # emotion이 없으면 기본값으로 설정하고 백그라운드에서 추출
         if diary.emotion is None:
-            logger.info(f"[create_diary] 🚀 Extractor 호출 시작 - user_id={diary.user_id}")
-            logger.info(f"[create_diary] 📝 입력 내용: {diary.content}")
-            
-            extracted = extract_diary_info(
-                diary_content=diary.content,
-                diary_datetime=diary.date.strftime("%Y-%m-%d %H:%M:%S") if isinstance(diary.date, datetime) else str(diary.date)
-            )
-            
-            logger.info(f"[create_diary] 📦 Extractor 반환값: {extracted}")
-            
-            # 추출된 emotion을 Emotion enum으로 변환
-            emotion_str = extracted.get("emotion", "").strip().upper()
-            logger.info(f"[create_diary] 🔄 Emotion 변환 시도: '{emotion_str}' -> Emotion enum")
-            
-            try:
-                # LLM이 반환한 enum 값을 직접 사용
-                diary.emotion = Emotion[emotion_str]
-                logger.info(f"[create_diary] ✅ Emotion 변환 성공: {diary.emotion.value}")
-            except (KeyError, AttributeError) as e:
-                # enum에 없는 값이면 기본값 사용
-                logger.warning(f"[create_diary] ⚠️ 잘못된 emotion 값: '{emotion_str}', 기본값 CALM 사용")
-                logger.warning(f"[create_diary] ⚠️ 예외: {type(e).__name__}: {e}")
-                diary.emotion = Emotion.CALM
-            
-            # 추출된 topic 저장
-            diary.topic = extracted.get("topic", "")
-            logger.info(f"[create_diary] ✅ 최종 결과:")
-            logger.info(f"  📌 topic: {diary.topic}")
-            logger.info(f"  😊 emotion: {diary.emotion.value}")
-        else:
-            logger.info(f"[create_diary] ℹ️ emotion이 이미 설정됨: {diary.emotion.value}, extractor 호출 안 함")
+            logger.info(f"[create_diary] ⚡ 빠른 저장 모드 - emotion이 없어서 기본값 CALM으로 저장 후 백그라운드 추출")
+            diary.emotion = Emotion.CALM  # 기본값으로 빠르게 저장
+            diary.topic = ""  # 추출 중임을 나타내기 위해 빈 값
         
         repository = get_diary_repository()
         new_diary = repository.create(diary)
+        
+        # emotion이 없었으면 백그라운드에서 추출 작업 추가
+        if diary.emotion == Emotion.CALM and not diary.topic:
+            diary_datetime = diary.date.strftime("%Y-%m-%d %H:%M:%S") if isinstance(diary.date, datetime) else str(diary.date)
+            background_tasks.add_task(
+                _extract_and_update_diary,
+                str(new_diary.id),
+                diary.content,
+                diary_datetime
+            )
+            logger.info(f"[create_diary] 📋 백그라운드 추출 작업 추가됨 - diary_id={new_diary.id}")
         duration_ms = (time.time() - start_time) * 1000
         log_api_request(
             logger,

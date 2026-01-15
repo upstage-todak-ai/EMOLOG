@@ -218,13 +218,22 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
               <View style={styles.logList}>
                 {sortedJournals.map((journal) => {
                   const { topic, emotion } = getLogData(journal);
+                  // topic이 없거나 빈 값이면 추출 중으로 표시
+                  const isExtracting = !topic || topic.trim() === '' || topic === 'none';
+                  
                   return (
                     <View key={journal.id} style={styles.logCard}>
                       <View style={styles.logTags}>
                         {/* topic이 있고 "none"이 아닐 때만 표시 */}
-                        {topic && topic !== 'none' && topic.trim() !== '' && (
+                        {!isExtracting && topic && topic !== 'none' && topic.trim() !== '' && (
                           <View style={[styles.tag, { backgroundColor: getTopicColor(topic) + '20', borderColor: getTopicColor(topic) + '40' }]}>
                             <Text style={[styles.tagText, { color: getTopicColor(topic) }]}>{topic}</Text>
+                          </View>
+                        )}
+                        {/* 추출 중일 때 표시 */}
+                        {isExtracting && (
+                          <View style={[styles.tag, { backgroundColor: '#94a3b820', borderColor: '#94a3b840' }]}>
+                            <Text style={[styles.tagText, { color: '#94a3b8' }]}>추출 중입니다...</Text>
                           </View>
                         )}
                         {/* emotion이 있고 "none"이 아닐 때만 표시 */}

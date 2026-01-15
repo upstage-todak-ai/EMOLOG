@@ -31,9 +31,10 @@ class DiaryEntryCreate(DiaryEntryBase):
     pass
 
 class DiaryEntryUpdate(BaseModel):
-    """일기 수정 요청 모델 (content, emotion만 수정 가능)"""
+    """일기 수정 요청 모델 (content, emotion, topic 수정 가능)"""
     content: Optional[str] = None
     emotion: Optional[Emotion] = None
+    topic: Optional[str] = None
 
 class DiaryEntry(DiaryEntryBase):
     """일기 응답 모델 (저장 후 반환할 때)"""
