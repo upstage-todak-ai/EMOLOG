@@ -79,16 +79,21 @@ def get_stats(user_id: str, period: Literal["week", "month"] = "week"):
         # 감정별 통계
         emotion_counter = Counter()
         for diary in filtered_diaries:
+            # emotion 처리: 이미 Emotion enum인 경우와 문자열인 경우 모두 처리
             try:
-                emotion = Emotion(diary.emotion)
-                emotion_counter[emotion] += 1
-            except (ValueError, AttributeError):
-                # emotion이 문자열인 경우
-                try:
+                if isinstance(diary.emotion, Emotion):
+                    emotion = diary.emotion
+                elif isinstance(diary.emotion, str):
                     emotion = Emotion(diary.emotion)
-                    emotion_counter[emotion] += 1
-                except:
-                    pass
+                else:
+                    # emotion이 None이거나 다른 타입인 경우 스킵
+                    logger.warning(f"일기 {diary.id}의 emotion이 유효하지 않습니다: {diary.emotion}")
+                    continue
+                emotion_counter[emotion] += 1
+            except (ValueError, AttributeError, TypeError) as e:
+                logger.warning(f"일기 {diary.id}의 emotion 변환 실패: {diary.emotion}, 에러: {e}")
+                # emotion 변환 실패 시 해당 일기는 스킵하고 계속 진행
+                continue
         
         emotion_stats = [
             EmotionStats(emotion=emotion, count=count)
@@ -98,8 +103,14 @@ def get_stats(user_id: str, period: Literal["week", "month"] = "week"):
         # 주제별 통계
         topic_counter = Counter()
         for diary in filtered_diaries:
-            topic = extract_topic_from_content(diary.content)
-            topic_counter[topic] += 1
+            # topic 추출 (content가 None이거나 빈 문자열일 수 있음)
+            try:
+                topic = extract_topic_from_content(diary.content or "")
+                topic_counter[topic] += 1
+            except Exception as e:
+                logger.warning(f"일기 {diary.id}의 topic 추출 실패: {e}")
+                # topic 추출 실패 시 '일상'으로 기본값 설정
+                topic_counter['일상'] += 1
         
         topic_stats = [
             TopicStats(topic=topic, count=count)
@@ -141,7 +152,8 @@ def get_stats(user_id: str, period: Literal["week", "month"] = "week"):
                 topic_stats=[],
                 total_count=0
             )
-        logger.error(f"통계 조회 실패: {error_msg}", exc_info=True)
+        logger.error(f"통계 조회 실패 (ValueError): {error_msg}", exc_info=True)
+        logger.error(f"  - user_id: {user_id}, period: {period}")
         log_api_request(
             logger,
             method="GET",
@@ -150,10 +162,13 @@ def get_stats(user_id: str, period: Literal["week", "month"] = "week"):
             status_code=500,
             duration_ms=duration_ms
         )
-        raise HTTPException(status_code=500, detail="통계 조회에 실패했습니다.")
+        raise HTTPException(status_code=500, detail=f"통계 조회에 실패했습니다: {error_msg}")
     except Exception as e:
         duration_ms = (time.time() - start_time) * 1000
-        logger.error(f"통계 조회 실패: {str(e)}", exc_info=True)
+        error_type = type(e).__name__
+        error_msg = str(e)
+        logger.error(f"통계 조회 실패 ({error_type}): {error_msg}", exc_info=True)
+        logger.error(f"  - user_id: {user_id}, period: {period}")
         log_api_request(
             logger,
             method="GET",
@@ -162,7 +177,7 @@ def get_stats(user_id: str, period: Literal["week", "month"] = "week"):
             status_code=500,
             duration_ms=duration_ms
         )
-        raise HTTPException(status_code=500, detail="통계 조회에 실패했습니다.")
+        raise HTTPException(status_code=500, detail=f"통계 조회에 실패했습니다: {error_msg}")
 
 
 @router.get("/report", response_model=ReportResponse)
@@ -196,18 +211,30 @@ def get_report(user_id: str, period: Literal["week", "month"] = "week"):
         topic_counter = Counter()
         
         for diary in filtered_diaries:
+            # emotion 처리: 이미 Emotion enum인 경우와 문자열인 경우 모두 처리
             try:
-                emotion = Emotion(diary.emotion)
-                emotion_counter[emotion] += 1
-            except (ValueError, AttributeError):
-                try:
+                if isinstance(diary.emotion, Emotion):
+                    emotion = diary.emotion
+                elif isinstance(diary.emotion, str):
                     emotion = Emotion(diary.emotion)
-                    emotion_counter[emotion] += 1
-                except:
-                    pass
+                else:
+                    # emotion이 None이거나 다른 타입인 경우 스킵
+                    logger.warning(f"일기 {diary.id}의 emotion이 유효하지 않습니다: {diary.emotion}")
+                    continue
+                emotion_counter[emotion] += 1
+            except (ValueError, AttributeError, TypeError) as e:
+                logger.warning(f"일기 {diary.id}의 emotion 변환 실패: {diary.emotion}, 에러: {e}")
+                # emotion 변환 실패 시 해당 일기는 스킵하고 계속 진행
+                continue
             
-            topic = extract_topic_from_content(diary.content)
-            topic_counter[topic] += 1
+            # topic 추출 (content가 None이거나 빈 문자열일 수 있음)
+            try:
+                topic = extract_topic_from_content(diary.content or "")
+                topic_counter[topic] += 1
+            except Exception as e:
+                logger.warning(f"일기 {diary.id}의 topic 추출 실패: {e}")
+                # topic 추출 실패 시 '일상'으로 기본값 설정
+                topic_counter['일상'] += 1
         
         # 가장 많은 감정과 주제 찾기
         top_emotion = emotion_counter.most_common(1)[0] if emotion_counter else None
@@ -292,7 +319,8 @@ def get_report(user_id: str, period: Literal["week", "month"] = "week"):
                 content="데이터베이스가 설정되지 않았습니다.",
                 period=period
             )
-        logger.error(f"레포트 생성 실패: {error_msg}", exc_info=True)
+        logger.error(f"레포트 생성 실패 (ValueError): {error_msg}", exc_info=True)
+        logger.error(f"  - user_id: {user_id}, period: {period}")
         log_api_request(
             logger,
             method="GET",
@@ -301,10 +329,13 @@ def get_report(user_id: str, period: Literal["week", "month"] = "week"):
             status_code=500,
             duration_ms=duration_ms
         )
-        raise HTTPException(status_code=500, detail="레포트 생성에 실패했습니다.")
+        raise HTTPException(status_code=500, detail=f"레포트 생성에 실패했습니다: {error_msg}")
     except Exception as e:
         duration_ms = (time.time() - start_time) * 1000
-        logger.error(f"레포트 생성 실패: {str(e)}", exc_info=True)
+        error_type = type(e).__name__
+        error_msg = str(e)
+        logger.error(f"레포트 생성 실패 ({error_type}): {error_msg}", exc_info=True)
+        logger.error(f"  - user_id: {user_id}, period: {period}")
         log_api_request(
             logger,
             method="GET",
@@ -313,4 +344,4 @@ def get_report(user_id: str, period: Literal["week", "month"] = "week"):
             status_code=500,
             duration_ms=duration_ms
         )
-        raise HTTPException(status_code=500, detail="레포트 생성에 실패했습니다.")
+        raise HTTPException(status_code=500, detail=f"레포트 생성에 실패했습니다: {error_msg}")
