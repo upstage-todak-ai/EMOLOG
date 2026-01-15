@@ -48,14 +48,14 @@ def extract_info(state: DiaryExtractionState) -> DiaryExtractionState:
     diary_content = state["diary_content"]
     diary_datetime = state.get("datetime", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     
-    logger.info(f"[extract_info] 🔍 일기 정보 추출 시작")
-    logger.info(f"  📝 일기 내용: {diary_content}")
-    logger.info(f"  ⏰ 작성 시간: {diary_datetime}")
+    logger.info("[extract_info] 일기 정보 추출 시작")
+    logger.info(f"일기 내용: {diary_content}")
+    logger.info(f"작성 시간: {diary_datetime}")
     
     try:
-        logger.info(f"[extract_info] 🤖 LLM 초기화 중...")
+        logger.info("[extract_info] LLM 초기화 중...")
         chat = _get_chat_llm()
-        logger.info(f"[extract_info] ✅ LLM 초기화 완료")
+        logger.info("[extract_info] LLM 초기화 완료")
         
         # LLM 호출을 위한 프롬프트 구성 (간단하게 주제와 감정만)
         prompt = f"""사용자가 작성한 짧은 메모에서 주제와 감정을 추출하고 JSON으로 응답하세요.
@@ -91,13 +91,13 @@ JSON 형식:
 }}"""
         
         # LLM 호출
-        logger.info(f"[extract_info] 📤 LLM 호출 중...")
+        logger.info("[extract_info] LLM 호출 중...")
         response = chat.invoke(prompt)
-        logger.info(f"[extract_info] 📥 LLM 응답 수신 완료")
+        logger.info("[extract_info] LLM 응답 수신 완료")
         
         # JSON 파싱
         response_text = response.content.strip()
-        logger.info(f"[extract_info] 📄 원본 LLM 응답: {response_text[:500]}...")
+        logger.info(f"[extract_info] 원본 LLM 응답: {response_text[:500]}...")
         
         # JSON 부분만 추출 (```json ... ``` 또는 {...} 형식)
         if "```json" in response_text:
@@ -126,25 +126,25 @@ JSON 형식:
             
             response_text = response_text[start_idx:end_idx]
         
-        logger.info(f"[extract_info] 🔧 JSON 파싱 중... 파싱할 텍스트: {response_text}")
+        logger.info(f"[extract_info] JSON 파싱 중... 파싱할 텍스트: {response_text}")
         result_json = json.loads(response_text)
         state["topic"] = result_json.get("topic", "")
         state["emotion"] = result_json.get("emotion", "")
         
-        logger.info(f"[extract_info] ✅ 추출 완료!")
-        logger.info(f"  📌 topic: {state['topic']}")
-        logger.info(f"  😊 emotion: {state['emotion']}")
-        logger.info(f"  📊 전체 결과: {result_json}")
+        logger.info("[extract_info] 추출 완료")
+        logger.info(f"topic: {state['topic']}")
+        logger.info(f"emotion: {state['emotion']}")
+        logger.info(f"전체 결과: {result_json}")
         
     except json.JSONDecodeError as e:
-        logger.error(f"[extract_info] ❌ JSON 파싱 실패: {e}")
+        logger.error(f"[extract_info] JSON 파싱 실패: {e}")
         logger.error(f"[extract_info] 원본 응답 전체: {response.content if 'response' in locals() else 'N/A'}")
         logger.error(f"[extract_info] 파싱 시도한 텍스트: {response_text if 'response_text' in locals() else 'N/A'}")
         # 기본값 사용
         state["topic"] = ""
         state["emotion"] = ""
     except Exception as e:
-        logger.error(f"[extract_info] ❌ 추출 실패: {e}", exc_info=True)
+        logger.error(f"[extract_info] 추출 실패: {e}", exc_info=True)
         logger.error(f"[extract_info] 예외 타입: {type(e).__name__}")
         # 기본값 사용
         state["topic"] = ""

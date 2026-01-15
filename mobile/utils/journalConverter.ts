@@ -33,10 +33,13 @@ export function backendToJournalEntry(backend: BackendDiaryEntry): JournalEntry 
     dateStr = dateStr.split('T')[0];
   }
   
+  // emotion이 null이면 null, 있으면 매핑된 값 사용
+  const emotion: Emotion | null = backend.emotion ? emotionMap[backend.emotion] : null;
+  
   return {
     id: String(backend.id || ''),
     date: dateStr,
-    emotion: emotionMap[backend.emotion],
+    emotion,
     content: backend.content,
     topic: backend.topic || '',  // 백엔드에서 추출한 topic
     createdAt: backend.created_at || new Date().toISOString(),

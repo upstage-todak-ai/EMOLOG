@@ -16,37 +16,40 @@ logger = get_logger(__name__)
 def _extract_and_update_diary(diary_id: str, diary_content: str, diary_datetime: str):
     """백그라운드에서 일기 정보 추출 및 업데이트"""
     try:
-        logger.info(f"[_extract_and_update_diary] 🔍 백그라운드 추출 시작 - diary_id={diary_id}")
+        logger.info(f"[_extract_and_update_diary] 백그라운드 추출 시작 - diary_id={diary_id}")
         
         extracted = extract_diary_info(
             diary_content=diary_content,
             diary_datetime=diary_datetime
         )
         
-        logger.info(f"[_extract_and_update_diary] 📦 Extractor 반환값: {extracted}")
+        logger.info(f"[_extract_and_update_diary] Extractor 반환값: {extracted}")
         
         # 추출된 emotion을 Emotion enum으로 변환
         emotion_str = extracted.get("emotion", "").strip().upper()
-        try:
-            emotion = Emotion[emotion_str]
-        except (KeyError, AttributeError):
-            emotion = Emotion.CALM
+        emotion = None
+        if emotion_str:
+            try:
+                emotion = Emotion[emotion_str]
+            except (KeyError, AttributeError):
+                emotion = None
         
-        topic = extracted.get("topic", "")
+        # topic이 None이거나 빈 문자열이면 None으로 저장 (나중에 빈 문자열로 변환)
+        topic = extracted.get("topic", "") or None
         
-        # 일기 업데이트
+        # 일기 업데이트 (topic이 None이면 빈 문자열로 저장)
         repository = get_diary_repository()
         updates = DiaryEntryUpdate(
             emotion=emotion,
-            topic=topic,
+            topic=topic if topic else "",  # None이면 빈 문자열로 저장
             content=None  # content는 업데이트하지 않음
         )
         
         updated = repository.update(diary_id, updates)
         
-        logger.info(f"[_extract_and_update_diary] ✅ 추출 및 업데이트 완료 - diary_id={diary_id}, topic={topic}, emotion={emotion.value}")
+        logger.info(f"[_extract_and_update_diary] 추출 및 업데이트 완료 - diary_id={diary_id}, topic={topic}, emotion={emotion.value if emotion else None}")
     except Exception as e:
-        logger.error(f"[_extract_and_update_diary] ❌ 추출 실패: {e}", exc_info=True)
+        logger.error(f"[_extract_and_update_diary] 추출 실패: {e}", exc_info=True)
 
 
 @router.post("/", response_model=DiaryEntry, status_code=201)
@@ -66,7 +69,7 @@ def create_diary(diary: DiaryEntryCreate, background_tasks: BackgroundTasks):
     try:
         # emotion이 없으면 기본값으로 설정하고 백그라운드에서 추출
         if diary.emotion is None:
-            logger.info(f"[create_diary] ⚡ 빠른 저장 모드 - emotion이 없어서 기본값 CALM으로 저장 후 백그라운드 추출")
+            logger.info("[create_diary] 빠른 저장 모드 - emotion이 없어서 기본값 CALM으로 저장 후 백그라운드 추출")
             diary.emotion = Emotion.CALM  # 기본값으로 빠르게 저장
             diary.topic = ""  # 추출 중임을 나타내기 위해 빈 값
         
@@ -82,7 +85,7 @@ def create_diary(diary: DiaryEntryCreate, background_tasks: BackgroundTasks):
                 diary.content,
                 diary_datetime
             )
-            logger.info(f"[create_diary] 📋 백그라운드 추출 작업 추가됨 - diary_id={new_diary.id}")
+            logger.info(f"[create_diary] 백그라운드 추출 작업 추가됨 - diary_id={new_diary.id}")
         duration_ms = (time.time() - start_time) * 1000
         log_api_request(
             logger,

@@ -133,7 +133,8 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
   const getLogData = (journal: JournalEntry) => {
     // 백엔드에서 추출한 topic 사용 (없으면 빈 문자열)
     const topic = journal.topic || '';
-    const emotion = journal.emotion.label;
+    // emotion이 null이면 빈 문자열
+    const emotion = journal.emotion?.label || '';
 
     return { topic, emotion };
   };
@@ -173,7 +174,10 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
           <Text style={styles.headerTitle}>EmoLog</Text>
           <View style={styles.headerButtons}>
             <TouchableOpacity
-              onPress={() => setIsLogView(!isLogView)}
+              onPress={() => {
+                setIsLogView(!isLogView);
+                loadJournals();
+              }}
               style={styles.headerButton}
             >
               <Ionicons
@@ -227,31 +231,29 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
               <View style={styles.logList}>
                 {sortedJournals.map((journal) => {
                   const { topic, emotion } = getLogData(journal);
-                  // topic이 없거나 빈 값이면 추출 중으로 표시
-                  const isExtracting = !topic || topic.trim() === '' || topic === 'none';
+                  // topic이 있고 빈 문자열이 아닌지 확인 (None, "none", 빈 문자열 모두 제외)
+                  const hasValidTopic = topic && topic.trim() !== '' && topic.toLowerCase() !== 'none';
+                  // emotion이 있고 빈 문자열이 아닌지 확인
+                  const hasValidEmotion = emotion && emotion.trim() !== '' && emotion.toLowerCase() !== 'none';
                   
                   return (
                     <View key={journal.id} style={styles.logCard}>
-                      <View style={styles.logTags}>
-                        {/* topic이 있고 "none"이 아닐 때만 표시 */}
-                        {!isExtracting && topic && topic !== 'none' && topic.trim() !== '' && (
-                          <View style={[styles.tag, { backgroundColor: getTopicColor(topic) + '20', borderColor: getTopicColor(topic) + '40' }]}>
-                            <Text style={[styles.tagText, { color: getTopicColor(topic) }]}>{topic}</Text>
-                          </View>
-                        )}
-                        {/* 추출 중일 때 표시 */}
-                        {isExtracting && (
-                          <View style={[styles.tag, { backgroundColor: '#94a3b820', borderColor: '#94a3b840' }]}>
-                            <Text style={[styles.tagText, { color: '#94a3b8' }]}>추출 중입니다...</Text>
-                          </View>
-                        )}
-                        {/* emotion이 있고 "none"이 아닐 때만 표시 */}
-                        {emotion && emotion !== 'none' && emotion.trim() !== '' && (
-                          <View style={[styles.tag, { backgroundColor: getEmotionColor(emotion) + '20', borderColor: getEmotionColor(emotion) + '40' }]}>
-                            <Text style={[styles.tagText, { color: getEmotionColor(emotion) }]}>{emotion}</Text>
-                          </View>
-                        )}
-                      </View>
+                      {(hasValidTopic || hasValidEmotion) && (
+                        <View style={styles.logTags}>
+                          {/* topic이 유효할 때만 표시 */}
+                          {hasValidTopic && (
+                            <View style={[styles.tag, { backgroundColor: getTopicColor(topic) + '20', borderColor: getTopicColor(topic) + '40' }]}>
+                              <Text style={[styles.tagText, { color: getTopicColor(topic) }]}>{topic}</Text>
+                            </View>
+                          )}
+                          {/* emotion이 유효할 때만 표시 */}
+                          {hasValidEmotion && (
+                            <View style={[styles.tag, { backgroundColor: getEmotionColor(emotion) + '20', borderColor: getEmotionColor(emotion) + '40' }]}>
+                              <Text style={[styles.tagText, { color: getEmotionColor(emotion) }]}>{emotion}</Text>
+                            </View>
+                          )}
+                        </View>
+                      )}
                       <Text style={styles.logContent} numberOfLines={2}>
                         {journal.content || '내용이 없습니다.'}
                       </Text>
@@ -270,7 +272,8 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
                     onPress={() => {
                       setSelectedDate(journal.date);
                       setSelectedJournal(journal);
-                      onNavigateToJournalWrite(journal.emotion, journal.date, journal);
+                      const defaultEmotion: Emotion = { label: '평온', icon: 'leaf', color: '#a5b4fc' };
+                      onNavigateToJournalWrite(journal.emotion || defaultEmotion, journal.date, journal);
                     }}
                     activeOpacity={0.7}
                   >
@@ -286,7 +289,8 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
                         onPress={() => {
                           setSelectedDate(journal.date);
                           setSelectedJournal(journal);
-                          onNavigateToJournalWrite(journal.emotion, journal.date, journal);
+                          const defaultEmotion: Emotion = { label: '평온', icon: 'leaf', color: '#a5b4fc' };
+                          onNavigateToJournalWrite(journal.emotion || defaultEmotion, journal.date, journal);
                         }}
                       >
                         <Ionicons name="create-outline" size={18} color="#3B82F6" />
@@ -343,10 +347,12 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
                 {selectedJournal ? (
                   <>
                     <Text style={styles.modalTitle}>오늘의 감정</Text>
-                    <View style={styles.selectedEmotionContainer}>
-                      <Ionicons name={selectedJournal.emotion.icon as any} size={32} color={selectedJournal.emotion.color} />
-                      <Text style={styles.selectedEmotionLabel}>{selectedJournal.emotion.label}</Text>
-                    </View>
+                    {selectedJournal.emotion && (
+                      <View style={styles.selectedEmotionContainer}>
+                        <Ionicons name={selectedJournal.emotion.icon as any} size={32} color={selectedJournal.emotion.color} />
+                        <Text style={styles.selectedEmotionLabel}>{selectedJournal.emotion.label}</Text>
+                      </View>
+                    )}
                   </>
                 ) : (
                   <>
@@ -371,7 +377,8 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
                   onPress={() => {
                     setModalVisible(false);
                     requestAnimationFrame(() => {
-                      onNavigateToJournalWrite(selectedJournal.emotion, selectedDate || undefined, selectedJournal);
+                      const defaultEmotion: Emotion = { label: '평온', icon: 'leaf', color: '#a5b4fc' };
+                      onNavigateToJournalWrite(selectedJournal.emotion || defaultEmotion, selectedDate || undefined, selectedJournal);
                     });
                   }}
                 >

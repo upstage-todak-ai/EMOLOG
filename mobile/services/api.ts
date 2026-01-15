@@ -14,7 +14,7 @@ export interface BackendDiaryEntry {
   user_id: string;
   date: string;
   content: string;
-  emotion: BackendEmotion;
+  emotion: BackendEmotion | null;  // 추출 실패 시 null
   topic?: string;  // 추출된 주제
   created_at?: string;
 }
