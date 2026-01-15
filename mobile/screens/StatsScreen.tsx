@@ -1,8 +1,10 @@
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { getStats, getReport } from '../services/api';
+import { getStats, getReport, generateWeeklyReport, DiaryEntryForReport } from '../services/api';
 import { getUserId } from '../services/userService';
+import { getAllJournals } from '../services/journalService';
+import { emotionLabelToBackend } from '../utils/journalConverter';
 import { useState, useEffect } from 'react';
 
 type Emotion = {
@@ -34,6 +36,7 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
   } | null>(null);
   const [report, setReport] = useState<{ title: string; content: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [generatingReport, setGeneratingReport] = useState(false);
 
   useEffect(() => {
     loadStats();
@@ -88,6 +91,66 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGenerateReport = async () => {
+    try {
+      setGeneratingReport(true);
+      const userId = await getUserId();
+      if (!userId) {
+        Alert.alert('오류', 'user_id가 설정되지 않았습니다.');
+        return;
+      }
+
+      // 모든 일기 가져오기
+      const allJournals = await getAllJournals();
+      
+      // 기간에 따라 필터링
+      const now = new Date();
+      const cutoffDate = new Date();
+      if (reportPeriod === 'week') {
+        cutoffDate.setDate(now.getDate() - 7);
+      } else {
+        cutoffDate.setDate(now.getDate() - 30);
+      }
+
+      const filteredJournals = allJournals.filter(journal => {
+        const journalDate = new Date(journal.date + 'T00:00:00');
+        return journalDate >= cutoffDate;
+      });
+
+      if (filteredJournals.length === 0) {
+        Alert.alert('알림', '리포트를 생성할 일기 데이터가 없습니다.');
+        return;
+      }
+
+      // 리포트 생성 요청 형식으로 변환
+      const diaryEntriesForReport: DiaryEntryForReport[] = filteredJournals.map(journal => ({
+        date: journal.date,
+        content: journal.content,
+        topic: journal.topic || null,
+        emotion: journal.emotion ? emotionLabelToBackend(journal.emotion.label) : null,
+      }));
+
+      // 리포트 생성 API 호출
+      const result = await generateWeeklyReport({
+        diary_entries: diaryEntriesForReport,
+      });
+
+      // 리포트 업데이트
+      const periodName = reportPeriod === 'week' ? '지난 주' : '지난 달';
+      setReport({
+        title: `${periodName}의 감정 레포트`,
+        content: result.report || '리포트 생성에 실패했습니다.',
+      });
+
+      Alert.alert('성공', '리포트가 생성되었습니다.');
+    } catch (error) {
+      console.error('리포트 생성 실패:', error);
+      Alert.alert('오류', `리포트 생성에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+    } finally {
+      setGeneratingReport(false);
     }
   };
 
@@ -184,22 +247,35 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
             <View style={styles.reportCard}>
               <View style={styles.reportHeader}>
                 <Text style={styles.reportTitle}>감정 레포트</Text>
-                <View style={styles.periodSelector}>
+                <View style={styles.reportHeaderRight}>
+                  <View style={styles.periodSelector}>
+                    <TouchableOpacity
+                      style={[styles.periodButton, reportPeriod === 'week' && styles.periodButtonActive]}
+                      onPress={() => setReportPeriod('week')}
+                    >
+                      <Text style={[styles.periodButtonText, reportPeriod === 'week' && styles.periodButtonTextActive]}>
+                        1주일
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.periodButton, reportPeriod === 'month' && styles.periodButtonActive]}
+                      onPress={() => setReportPeriod('month')}
+                    >
+                      <Text style={[styles.periodButtonText, reportPeriod === 'month' && styles.periodButtonTextActive]}>
+                        1개월
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                   <TouchableOpacity
-                    style={[styles.periodButton, reportPeriod === 'week' && styles.periodButtonActive]}
-                    onPress={() => setReportPeriod('week')}
+                    style={[styles.testButton, generatingReport && styles.testButtonDisabled]}
+                    onPress={handleGenerateReport}
+                    disabled={generatingReport}
                   >
-                    <Text style={[styles.periodButtonText, reportPeriod === 'week' && styles.periodButtonTextActive]}>
-                      1주일
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.periodButton, reportPeriod === 'month' && styles.periodButtonActive]}
-                    onPress={() => setReportPeriod('month')}
-                  >
-                    <Text style={[styles.periodButtonText, reportPeriod === 'month' && styles.periodButtonTextActive]}>
-                      1개월
-                    </Text>
+                    {generatingReport ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.testButtonText}>테스트</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
@@ -403,6 +479,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 16,
+  },
+  reportHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  testButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: '#8B5CF6',
+  },
+  testButtonDisabled: {
+    opacity: 0.6,
+  },
+  testButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
+    fontFamily: 'NanumPen',
   },
   reportTitle: {
     fontSize: 18,

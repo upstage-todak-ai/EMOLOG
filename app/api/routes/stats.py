@@ -111,36 +111,52 @@ def get_stats(user_id: str, period: Literal["week", "month"] = "week"):
         # 기간별 필터링
         filtered_diaries = filter_by_period(all_diaries, period)
         
+        logger.info(f"[get_stats] 통계 조회 - user_id={user_id}, period={period}, 전체일기={len(all_diaries)}개, 필터링후={len(filtered_diaries)}개")
+        
         # 감정별 통계
         emotion_counter = Counter()
+        emotion_none_count = 0  # emotion이 None인 일기 개수
         for diary in filtered_diaries:
             # emotion 처리: 이미 Emotion enum인 경우와 문자열인 경우 모두 처리
             try:
-                if isinstance(diary.emotion, Emotion):
+                if diary.emotion is None:
+                    # emotion이 None인 경우도 카운트 (하지만 통계에는 포함하지 않음)
+                    emotion_none_count += 1
+                    continue
+                elif isinstance(diary.emotion, Emotion):
                     emotion = diary.emotion
                 elif isinstance(diary.emotion, str):
                     emotion = Emotion(diary.emotion)
                 else:
-                    # emotion이 None이거나 다른 타입인 경우 스킵
-                    logger.warning(f"일기 {diary.id}의 emotion이 유효하지 않습니다: {diary.emotion}")
+                    # emotion이 다른 타입인 경우 스킵
+                    logger.warning(f"일기 {diary.id}의 emotion 타입이 예상과 다릅니다: {type(diary.emotion)}, 값: {diary.emotion}")
+                    emotion_none_count += 1
                     continue
                 emotion_counter[emotion] += 1
             except (ValueError, AttributeError, TypeError) as e:
                 logger.warning(f"일기 {diary.id}의 emotion 변환 실패: {diary.emotion}, 에러: {e}")
-                # emotion 변환 실패 시 해당 일기는 스킵하고 계속 진행
+                # emotion 변환 실패 시 None으로 카운트
+                emotion_none_count += 1
                 continue
+        
+        if emotion_none_count > 0:
+            logger.info(f"[get_stats] emotion이 None인 일기: {emotion_none_count}개 (통계에 포함되지 않음)")
         
         emotion_stats = [
             EmotionStats(emotion=emotion, count=count)
             for emotion, count in emotion_counter.items()
         ]
         
-        # 주제별 통계
+        # 주제별 통계 - DB에 저장된 topic 사용
         topic_counter = Counter()
         for diary in filtered_diaries:
-            # topic 추출 (content가 None이거나 빈 문자열일 수 있음)
+            # DB에 저장된 topic 사용 (없으면 키워드 기반 추출)
             try:
-                topic = extract_topic_from_content(diary.content or "")
+                if diary.topic and diary.topic.strip() and diary.topic.lower() != 'none':
+                    topic = diary.topic
+                else:
+                    # topic이 없으면 키워드 기반 추출
+                    topic = extract_topic_from_content(diary.content or "")
                 topic_counter[topic] += 1
             except Exception as e:
                 logger.warning(f"일기 {diary.id}의 topic 추출 실패: {e}")
@@ -151,6 +167,10 @@ def get_stats(user_id: str, period: Literal["week", "month"] = "week"):
             TopicStats(topic=topic, count=count)
             for topic, count in topic_counter.items()
         ]
+        
+        logger.info(f"[get_stats] 통계 결과 - 감정통계={len(emotion_stats)}개, 주제통계={len(topic_stats)}개, 총일기수={len(filtered_diaries)}개")
+        logger.debug(f"[get_stats] 감정 통계 상세: {[(stat.emotion.value if hasattr(stat.emotion, 'value') else stat.emotion, stat.count) for stat in emotion_stats]}")
+        logger.debug(f"[get_stats] 주제 통계 상세: {[(stat.topic, stat.count) for stat in topic_stats]}")
         
         duration_ms = (time.time() - start_time) * 1000
         log_api_request(

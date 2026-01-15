@@ -217,3 +217,52 @@ export async function extractLog(content: string): Promise<BackendLogExtractResp
   }
   return response.json();
 }
+
+/**
+ * 리포트 생성용 일기 항목
+ */
+export interface DiaryEntryForReport {
+  date: string; // "YYYY-MM-DD"
+  content: string;
+  topic: string | null;
+  emotion: string | null; // BackendEmotion | null
+}
+
+/**
+ * 리포트 생성 요청
+ */
+export interface WeeklyReportRequest {
+  diary_entries: DiaryEntryForReport[];
+  period_start?: string; // "YYYY-MM-DD" (선택)
+  period_end?: string; // "YYYY-MM-DD" (선택)
+}
+
+/**
+ * 리포트 생성 응답
+ */
+export interface WeeklyReportResponse {
+  report: string;
+  summary: string;
+  period_start: string;
+  period_end: string;
+}
+
+/**
+ * 주간 리포트 생성 (LangGraph 기반)
+ */
+export async function generateWeeklyReport(request: WeeklyReportRequest): Promise<WeeklyReportResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/report/weekly`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('리포트 생성 API 에러:', response.status, errorText);
+    throw new Error(`리포트 생성 실패: ${errorText}`);
+  }
+  return response.json();
+}
