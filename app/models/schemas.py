@@ -172,6 +172,7 @@ class DiaryEntryForReport(BaseModel):
 
 class ReportRequest(BaseModel):
     """리포트 생성 요청 모델"""
+    user_id: str  # 사용자 ID
     diary_entries: List[DiaryEntryForReport]  # extractor로 분석된 일기 항목 리스트
     period_start: Optional[str] = None  # 리포트 기간 시작일 "YYYY-MM-DD" (선택)
     period_end: Optional[str] = None  # 리포트 기간 종료일 "YYYY-MM-DD" (선택)

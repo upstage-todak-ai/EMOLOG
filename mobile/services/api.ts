@@ -232,9 +232,20 @@ export interface DiaryEntryForReport {
  * 리포트 생성 요청
  */
 export interface WeeklyReportRequest {
+  user_id: string; // 사용자 ID
   diary_entries: DiaryEntryForReport[];
   period_start?: string; // "YYYY-MM-DD" (선택)
   period_end?: string; // "YYYY-MM-DD" (선택)
+}
+
+/**
+ * 인사이트 타입
+ */
+export interface Insight {
+  type: 'time_contrast' | 'repetition' | 'causal_relation';
+  description: string;
+  date_references: string[];
+  evidence: string;
 }
 
 /**
@@ -245,6 +256,34 @@ export interface WeeklyReportResponse {
   summary: string;
   period_start: string;
   period_end: string;
+  insights: Insight[];
+}
+
+/**
+ * 최신 리포트 조회
+ */
+export async function getLatestReport(userId: string): Promise<WeeklyReportResponse | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/report/latest?user_id=${userId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null; // 리포트가 없음
+      }
+      const errorText = await response.text();
+      console.error('리포트 조회 API 에러:', response.status, errorText);
+      return null; // 에러가 나도 null 반환 (있으면 표시하라는 요청)
+    }
+    return response.json();
+  } catch (error) {
+    console.error('리포트 조회 실패:', error);
+    return null; // 에러가 나도 null 반환
+  }
 }
 
 /**

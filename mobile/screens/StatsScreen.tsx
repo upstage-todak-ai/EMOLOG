@@ -1,7 +1,7 @@
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, ActivityIndicator } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, ActivityIndicator, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { getStats, getReport, generateWeeklyReport, DiaryEntryForReport } from '../services/api';
+import { getStats, getReport, generateWeeklyReport, getLatestReport, DiaryEntryForReport, Insight } from '../services/api';
 import { getUserId } from '../services/userService';
 import { getAllJournals } from '../services/journalService';
 import { emotionLabelToBackend } from '../utils/journalConverter';
@@ -28,19 +28,19 @@ const EMOTIONS: Emotion[] = [
 ];
 
 export default function StatsScreen({ onBack }: StatsScreenProps) {
-  const [reportPeriod, setReportPeriod] = useState<'week' | 'month'>('week');
   const [stats, setStats] = useState<{
     emotion_stats: Array<{ emotion: string; count: number }>;
     topic_stats: Array<{ topic: string; count: number }>;
     total_count: number;
   } | null>(null);
-  const [report, setReport] = useState<{ title: string; content: string } | null>(null);
+  const [report, setReport] = useState<{ title: string; content: string; insights?: Insight[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [generatingReport, setGeneratingReport] = useState(false);
+  const [showInsightsModal, setShowInsightsModal] = useState(false);
 
   useEffect(() => {
     loadStats();
-  }, [reportPeriod]);
+  }, []);
 
   const loadStats = async () => {
     try {
@@ -49,46 +49,60 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
       if (!userId) {
         throw new Error('user_id가 설정되지 않았습니다.');
       }
-      const [statsData, reportData] = await Promise.all([
-        getStats(userId, reportPeriod),
-        getReport(userId, reportPeriod),
+      
+      // 통계와 리포트 병렬 로드
+      const [statsData, latestReport] = await Promise.all([
+        getStats(userId, 'week').catch(() => null), // 에러가 나도 null
+        getLatestReport(userId), // 에러가 나도 null
       ]);
       
-      // 백엔드 감정을 프론트엔드 형식으로 변환
-      const emotionMap: Record<string, string> = {
-        'JOY': '기쁨',
-        'CALM': '평온',
-        'SADNESS': '슬픔',
-        'ANGER': '화남',
-        'ANXIETY': '불안',
-        'EXHAUSTED': '지침',
-      };
+      // 통계 설정
+      if (statsData) {
+        const emotionMap: Record<string, string> = {
+          'JOY': '기쁨',
+          'CALM': '평온',
+          'SADNESS': '슬픔',
+          'ANGER': '화남',
+          'ANXIETY': '불안',
+          'EXHAUSTED': '지침',
+        };
+        
+        const convertedEmotionStats = statsData.emotion_stats.map(stat => ({
+          emotion: emotionMap[stat.emotion] || stat.emotion,
+          count: stat.count,
+        }));
+        
+        setStats({
+          emotion_stats: convertedEmotionStats,
+          topic_stats: statsData.topic_stats,
+          total_count: statsData.total_count,
+        });
+      } else {
+        setStats({
+          emotion_stats: [],
+          topic_stats: [],
+          total_count: 0,
+        });
+      }
       
-      const convertedEmotionStats = statsData.emotion_stats.map(stat => ({
-        emotion: emotionMap[stat.emotion] || stat.emotion,
-        count: stat.count,
-      }));
-      
-      setStats({
-        emotion_stats: convertedEmotionStats,
-        topic_stats: statsData.topic_stats,
-        total_count: statsData.total_count,
-      });
-      setReport({
-        title: reportData.title,
-        content: reportData.content,
-      });
+      // 리포트 설정 (있으면 표시)
+      if (latestReport) {
+        setReport({
+          title: '감정 레포트',
+          content: latestReport.report || '',
+          insights: latestReport.insights || [],
+        });
+      } else {
+        setReport(null);
+      }
     } catch (error) {
-      console.error('통계 로드 실패:', error);
+      console.error('통계/리포트 로드 실패:', error);
       setStats({
         emotion_stats: [],
         topic_stats: [],
         total_count: 0,
       });
-      setReport({
-        title: reportPeriod === 'week' ? '지난 주의 감정 레포트' : '지난 달의 감정 레포트',
-        content: '통계를 불러오는데 실패했습니다.',
-      });
+      // 리포트는 null로 두고, 있으면 표시되도록 함
     } finally {
       setLoading(false);
     }
@@ -106,14 +120,10 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
       // 모든 일기 가져오기
       const allJournals = await getAllJournals();
       
-      // 기간에 따라 필터링
+      // 최근 30일 데이터 사용
       const now = new Date();
       const cutoffDate = new Date();
-      if (reportPeriod === 'week') {
-        cutoffDate.setDate(now.getDate() - 7);
-      } else {
-        cutoffDate.setDate(now.getDate() - 30);
-      }
+      cutoffDate.setDate(now.getDate() - 30);
 
       const filteredJournals = allJournals.filter(journal => {
         const journalDate = new Date(journal.date + 'T00:00:00');
@@ -135,15 +145,30 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
 
       // 리포트 생성 API 호출
       const result = await generateWeeklyReport({
+        user_id: userId,
         diary_entries: diaryEntriesForReport,
       });
 
-      // 리포트 업데이트
-      const periodName = reportPeriod === 'week' ? '지난 주' : '지난 달';
+      // 리포트 업데이트 및 재조회
       setReport({
-        title: `${periodName}의 감정 레포트`,
+        title: '감정 레포트',
         content: result.report || '리포트 생성에 실패했습니다.',
+        insights: result.insights || [],
       });
+      
+      // DB에서 최신 리포트 다시 조회 (화면 갱신)
+      try {
+        const latestReport = await getLatestReport(userId);
+        if (latestReport) {
+          setReport({
+            title: '감정 레포트',
+            content: latestReport.report || '',
+            insights: latestReport.insights || [],
+          });
+        }
+      } catch (error) {
+        // 무시 (이미 리포트는 표시됨)
+      }
 
       Alert.alert('성공', '리포트가 생성되었습니다.');
     } catch (error) {
@@ -247,37 +272,17 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
             <View style={styles.reportCard}>
               <View style={styles.reportHeader}>
                 <Text style={styles.reportTitle}>감정 레포트</Text>
-                <View style={styles.reportHeaderRight}>
-                  <View style={styles.periodSelector}>
-                    <TouchableOpacity
-                      style={[styles.periodButton, reportPeriod === 'week' && styles.periodButtonActive]}
-                      onPress={() => setReportPeriod('week')}
-                    >
-                      <Text style={[styles.periodButtonText, reportPeriod === 'week' && styles.periodButtonTextActive]}>
-                        1주일
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.periodButton, reportPeriod === 'month' && styles.periodButtonActive]}
-                      onPress={() => setReportPeriod('month')}
-                    >
-                      <Text style={[styles.periodButtonText, reportPeriod === 'month' && styles.periodButtonTextActive]}>
-                        1개월
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                  <TouchableOpacity
-                    style={[styles.testButton, generatingReport && styles.testButtonDisabled]}
-                    onPress={handleGenerateReport}
-                    disabled={generatingReport}
-                  >
-                    {generatingReport ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={styles.testButtonText}>테스트</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity
+                  style={[styles.testButton, generatingReport && styles.testButtonDisabled]}
+                  onPress={handleGenerateReport}
+                  disabled={generatingReport}
+                >
+                  {generatingReport ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.testButtonText}>생성</Text>
+                  )}
+                </TouchableOpacity>
               </View>
 
               <LinearGradient
@@ -311,6 +316,15 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
                 ) : null}
               </LinearGradient>
 
+              {report?.insights && report.insights.length > 0 && (
+                <TouchableOpacity
+                  style={styles.insightsButton}
+                  onPress={() => setShowInsightsModal(true)}
+                >
+                  <Ionicons name="information-circle-outline" size={20} color="#8B5CF6" />
+                  <Text style={styles.insightsButtonText}>근거보기</Text>
+                </TouchableOpacity>
+              )}
               <Text style={styles.reportHint}>
                 💡 레포트는 AI가 당신의 감정 패턴을 분석하여 생성됩니다
               </Text>
@@ -318,6 +332,68 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
           </>
         )}
       </ScrollView>
+
+      {/* 근거보기 모달 */}
+      <Modal
+        visible={showInsightsModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowInsightsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>리포트 근거</Text>
+              <TouchableOpacity
+                onPress={() => setShowInsightsModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalScrollView}>
+              {report?.insights && report.insights.length > 0 ? (
+                report.insights.map((insight, index) => (
+                  <View key={index} style={styles.insightItem}>
+                    <View style={styles.insightHeader}>
+                      <View style={styles.insightTypeBadge}>
+                        <Text style={styles.insightTypeText}>
+                          {insight.type === 'time_contrast' ? '시간 대비' :
+                           insight.type === 'repetition' ? '반복 패턴' :
+                           insight.type === 'causal_relation' ? '인과 관계' : insight.type}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.insightDescription}>{insight.description}</Text>
+                    {insight.evidence && (
+                      <Text style={styles.insightEvidence}>💡 {insight.evidence}</Text>
+                    )}
+                    {insight.date_references && insight.date_references.length > 0 && (
+                      <View style={styles.insightDates}>
+                        <Text style={styles.insightDatesLabel}>관련 날짜:</Text>
+                        {insight.date_references.map((date, dateIndex) => (
+                          <TouchableOpacity
+                            key={dateIndex}
+                            style={styles.dateTag}
+                            onPress={() => {
+                              // 날짜 클릭 시 해당 날짜의 일기로 이동할 수 있도록 (나중에 구현 가능)
+                              Alert.alert('날짜', date);
+                            }}
+                          >
+                            <Text style={styles.dateTagText}>{date}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.noInsightsText}>근거 데이터가 없습니다.</Text>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -568,5 +644,125 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#94a3b8',
     textAlign: 'center',
+  },
+  insightsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f3e8ff',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginTop: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e9d5ff',
+  },
+  insightsButtonText: {
+    marginLeft: 8,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#8B5CF6',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '80%',
+    paddingBottom: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalScrollView: {
+    padding: 20,
+  },
+  insightItem: {
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  insightHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  insightTypeBadge: {
+    backgroundColor: '#ede9fe',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  insightTypeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#7c3aed',
+  },
+  insightDescription: {
+    fontSize: 15,
+    color: '#1e293b',
+    lineHeight: 22,
+    marginBottom: 8,
+  },
+  insightEvidence: {
+    fontSize: 14,
+    color: '#64748b',
+    lineHeight: 20,
+    marginTop: 8,
+    paddingLeft: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#a78bfa',
+  },
+  insightDates: {
+    marginTop: 12,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+  },
+  insightDatesLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
+    marginRight: 8,
+  },
+  dateTag: {
+    backgroundColor: '#e0e7ff',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginRight: 6,
+    marginBottom: 6,
+  },
+  dateTagText: {
+    fontSize: 12,
+    color: '#4f46e5',
+    fontWeight: '500',
+  },
+  noInsightsText: {
+    textAlign: 'center',
+    fontSize: 15,
+    color: '#94a3b8',
+    marginTop: 40,
   },
 });
