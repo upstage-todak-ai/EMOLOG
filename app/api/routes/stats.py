@@ -42,18 +42,53 @@ def filter_by_period(diaries, period: Literal["week", "month"]):
     
     filtered = []
     for diary in diaries:
-        # date가 문자열인 경우 datetime으로 변환
-        if isinstance(diary.date, str):
-            try:
-                diary_date = datetime.fromisoformat(diary.date.replace('Z', '+00:00'))
-            except:
-                diary_date = datetime.fromisoformat(diary.date)
-        else:
-            diary_date = diary.date
-        
-        # timezone 정보 제거 후 비교
-        if diary_date.replace(tzinfo=None) >= cutoff_date:
-            filtered.append(diary)
+        try:
+            # date가 이미 datetime 객체인 경우
+            if isinstance(diary.date, datetime):
+                diary_date = diary.date
+            # date가 문자열인 경우 다양한 형식 처리
+            elif isinstance(diary.date, str):
+                date_str = diary.date.strip()
+                
+                # 1. ISO 형식 (Z 또는 +00:00 포함)
+                if 'Z' in date_str:
+                    diary_date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                # 2. ISO 형식 (+HH:MM 또는 -HH:MM 포함)
+                elif '+' in date_str or (date_str.count('-') >= 3 and 'T' in date_str):
+                    diary_date = datetime.fromisoformat(date_str)
+                # 3. 단순 날짜 형식 (YYYY-MM-DD)
+                elif len(date_str) == 10 and date_str.count('-') == 2:
+                    diary_date = datetime.strptime(date_str, '%Y-%m-%d')
+                # 4. ISO 형식 (timezone 없음)
+                elif 'T' in date_str:
+                    diary_date = datetime.fromisoformat(date_str)
+                # 5. 기타 형식 시도
+                else:
+                    # 여러 일반적인 형식 시도
+                    for fmt in ['%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d']:
+                        try:
+                            diary_date = datetime.strptime(date_str, fmt)
+                            break
+                        except ValueError:
+                            continue
+                    else:
+                        # 모든 형식 실패 시 로그하고 스킵
+                        logger.warning(f"일기 {diary.id}의 날짜 형식을 파싱할 수 없습니다: {date_str}")
+                        continue
+            else:
+                # 예상치 못한 타입
+                logger.warning(f"일기 {diary.id}의 날짜 타입이 예상과 다릅니다: {type(diary.date)}")
+                continue
+            
+            # timezone 정보 제거 후 비교
+            diary_date_naive = diary_date.replace(tzinfo=None) if diary_date.tzinfo else diary_date
+            
+            if diary_date_naive >= cutoff_date:
+                filtered.append(diary)
+        except (ValueError, AttributeError, TypeError) as e:
+            # 날짜 파싱 실패 시 로그하고 해당 일기는 스킵
+            logger.warning(f"일기 {diary.id}의 날짜 처리 실패: {diary.date}, 에러: {e}")
+            continue
     
     return filtered
 
