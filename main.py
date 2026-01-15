@@ -9,8 +9,8 @@ setup_logging()
 
 # FastAPI 앱 생성 (서버의 심장)
 app = FastAPI(
-    title="Todak-AI Backend",
-    description="토닥이 AI 일기 앱 백엔드 API",
+    title="EmoLog Backend",
+    description="EmoLog 일기 앱 백엔드 API",
     version="0.1.0"
 )
 
@@ -39,7 +39,7 @@ def read_root():
     루트 경로 (/) 접속 시 보여줄 메시지
     서버가 잘 돌아가는지 확인하는 용도
     """
-    return {"message": "Todak-AI Backend is running!"}
+    return {"message": "EmoLog Backend is running!"}
 
 @app.get("/health")
 def health_check():
