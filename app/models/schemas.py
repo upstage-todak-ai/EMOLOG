@@ -143,8 +143,8 @@ class LogExtractRequest(BaseModel):
 
 class LogExtractResponse(BaseModel):
     """Log 추출 응답 모델"""
-    topic: str  # 주제 (학업, 대인관계, 일상, 취미, 건강 등)
-    emotion: Emotion  # 감정
+    topic: str  # 주제 (학업, 대인관계, 일상, 취미, 건강, none)
+    emotion: Optional[Emotion] = None  # 감정 (파싱 실패 시 None)
 
 # ==========================================
 # Extractor 관련 모델 (LangGraph 버전)

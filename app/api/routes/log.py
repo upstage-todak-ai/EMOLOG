@@ -43,7 +43,7 @@ def extract_log(request: LogExtractRequest):
             duration_ms=duration_ms,
             content_len=len(request.content),
             topic=topic,
-            emotion=emotion.value
+            emotion=emotion.value if emotion else None
         )
         
         return LogExtractResponse(

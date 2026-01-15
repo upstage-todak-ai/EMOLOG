@@ -18,7 +18,6 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
   const [selectedJournal, setSelectedJournal] = useState<JournalEntry | null>(null);
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [isLogView, setIsLogView] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
 
   const appState = useRef(AppState.currentState);
 
@@ -78,19 +77,29 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
 
   // 일기 삭제
   const handleDeleteJournal = async (journal: JournalEntry) => {
-    if (showDeleteConfirm === journal.id) {
-      try {
-        await deleteJournal(journal.id);
-        loadJournals();
-        setShowDeleteConfirm(null);
-      } catch (error) {
-        console.error('일기 삭제 실패:', error);
-        Alert.alert('오류', '일기 삭제에 실패했습니다.');
-      }
-    } else {
-      setShowDeleteConfirm(journal.id);
-      setTimeout(() => setShowDeleteConfirm(null), 3000);
-    }
+    Alert.alert(
+      '일기 삭제',
+      '이 일기를 삭제하시겠습니까?',
+      [
+        {
+          text: '취소',
+          style: 'cancel',
+        },
+        {
+          text: '삭제',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteJournal(journal.id);
+              loadJournals();
+            } catch (error) {
+              console.error('일기 삭제 실패:', error);
+              Alert.alert('오류', '일기 삭제에 실패했습니다.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   // 날짜 포맷팅
@@ -283,13 +292,13 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
                         <Ionicons name="create-outline" size={18} color="#3B82F6" />
                       </TouchableOpacity>
                       <TouchableOpacity
-                        style={[styles.memoActionButton, showDeleteConfirm === journal.id && styles.deleteConfirm]}
+                        style={styles.memoActionButton}
                         onPress={() => handleDeleteJournal(journal)}
                       >
                         <Ionicons
                           name="trash-outline"
                           size={18}
-                          color={showDeleteConfirm === journal.id ? '#EF4444' : '#EF4444'}
+                          color="#EF4444"
                         />
                       </TouchableOpacity>
                     </View>
@@ -527,9 +536,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 8,
     backgroundColor: '#f1f5f9',
-  },
-  deleteConfirm: {
-    backgroundColor: '#fee2e2',
   },
   logList: {
     gap: 12,
