@@ -52,8 +52,13 @@ export function journalEntryToBackend(
 ): { user_id: string; date: string; content: string; emotion: BackendEmotion } {
   const backendEmotion = reverseEmotionMap[journal.emotion.label] || 'CALM';
   
-  // date를 datetime 형식으로 변환 (백엔드가 datetime을 기대하는 경우)
-  const dateStr = journal.date;
+  // date를 ISO datetime 형식으로 변환 (백엔드가 datetime을 기대)
+  // YYYY-MM-DD 형식을 YYYY-MM-DDTHH:mm:ss 형식으로 변환
+  let dateStr = journal.date;
+  if (dateStr && !dateStr.includes('T')) {
+    // 시간 부분이 없으면 자정(00:00:00)으로 설정
+    dateStr = `${dateStr}T00:00:00`;
+  }
   
   return {
     user_id: userId,
