@@ -34,17 +34,14 @@ export default function JournalWriteScreen({ emotion, selectedDate, existingJour
 
   const loadExistingJournal = async () => {
     try {
-      // props로 전달된 기존 일기가 있으면 사용
+      // props로 전달된 기존 일기가 있으면 사용 (수정 모드)
       if (existingJournal) {
         setContent(existingJournal.content);
         return;
       }
       
-      // 없으면 날짜로 조회
-      const existing = await getJournalByDate(dateString);
-      if (existing) {
-        setContent(existing.content);
-      }
+      // 새로운 메모 작성 모드에서는 기존 일기를 불러오지 않음
+      // (같은 날짜에 여러 메모를 작성할 수 있도록)
     } catch (error) {
       console.error('일기 불러오기 실패:', error);
     }
@@ -55,17 +52,15 @@ export default function JournalWriteScreen({ emotion, selectedDate, existingJour
     
     setLoading(true);
     try {
-      // 기존 일기 확인
-      const existing = await getJournalByDate(dateString);
-      
-      if (existing) {
-        // 수정
-        await updateJournal(existing.id, {
+      // existingJournal prop이 있으면 수정, 없으면 새로 생성
+      if (existingJournal) {
+        // 수정 모드: props로 전달된 기존 일기를 수정
+        await updateJournal(existingJournal.id, {
           content,
           emotion,
         });
       } else {
-        // 새로 생성
+        // 새로 생성 모드: 날짜로 기존 일기를 찾지 않고 항상 새로 생성
         await createJournal({
           date: dateString,
           emotion: {

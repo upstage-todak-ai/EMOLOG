@@ -1,8 +1,5 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from pathlib import Path
 from app.api.routes import diary, stats, log, calendar
 # extractor, report는 langgraph가 필요하므로 일단 주석 처리
 # from app.api.routes import extractor, report
@@ -40,40 +37,15 @@ app.include_router(calendar.router)
 # app.include_router(extractor.router)
 # app.include_router(report.router)
 
-# 정적 파일 서빙 설정 (React 빌드 결과물)
-frontend_dist = Path(__file__).parent / "frontend" / "dist"
-if frontend_dist.exists():
-    # 정적 파일 (CSS, JS, 이미지 등) 서빙
-    app.mount("/assets", StaticFiles(directory=frontend_dist / "assets"), name="assets")
-    
-    # SPA 라우팅을 위한 catch-all 라우트
-    @app.get("/{full_path:path}")
-    def serve_spa(full_path: str):
-        """
-        SPA 라우팅 지원
-        API 경로가 아닌 모든 요청은 React 앱의 index.html을 반환
-        """
-        # API 경로는 제외
-        if full_path.startswith("api/") or full_path == "health":
-            return {"message": "Not found"}
-        
-        # index.html 반환
-        index_file = frontend_dist / "index.html"
-        if index_file.exists():
-            return FileResponse(index_file)
-        return {"message": "Frontend not built. Run 'cd frontend && npm run build'"}
-else:
-    # 프론트엔드가 빌드되지 않은 경우
-    @app.get("/")
-    def read_root():
-        """
-        루트 경로 (/) 접속 시 보여줄 메시지
-        프론트엔드가 빌드되지 않은 경우 표시
-        """
-        return {
-            "message": "EmoLog Backend is running!",
-            "note": "Frontend not built. Run 'cd frontend && npm run build' to serve the frontend."
-        }
+@app.get("/")
+def read_root():
+    """
+    루트 경로 (/) 접속 시 보여줄 메시지
+    """
+    return {
+        "message": "EmoLog Backend is running!",
+        "version": "0.1.0"
+    }
 
 @app.get("/health")
 def health_check():
