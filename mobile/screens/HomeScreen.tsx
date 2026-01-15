@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, AppState, Alert, ActivityIndicator } from 'react-native';
+import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, AppState, Alert, ActivityIndicator, Animated, LayoutAnimation, UIManager, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState, useEffect, useRef } from 'react';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +12,11 @@ type HomeScreenProps = {
   onNavigateToJournalWrite: (emotion: Emotion, selectedDate?: string, existingJournal?: JournalEntry | null) => void;
 };
 
+// Android에서 LayoutAnimation 활성화
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, onNavigateToJournalWrite }: HomeScreenProps) {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -20,12 +25,18 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
   const [isLogView, setIsLogView] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractingIds, setExtractingIds] = useState<Set<string>>(new Set());
+  const [selectedMemoForAction, setSelectedMemoForAction] = useState<JournalEntry | null>(null);
+  const [pressedCardId, setPressedCardId] = useState<string | null>(null);
+  const tagAnimations = useRef<Map<string, Animated.Value>>(new Map());
+  const toggleAnimation = useRef(new Animated.Value(0)).current;
 
   const appState = useRef(AppState.currentState);
 
   // 일기 목록 불러오기
   useEffect(() => {
     loadJournals();
+    // 초기 토글 애니메이션 값 설정
+    toggleAnimation.setValue(isLogView ? 1 : 0);
   }, []);
 
   // 앱이 포그라운드로 돌아올 때 일기 목록 새로고침
@@ -44,6 +55,55 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
       subscription.remove();
     };
   }, []);
+
+  // Log 뷰 토글 시 태그 애니메이션
+  useEffect(() => {
+    // 레이아웃 애니메이션 설정
+    LayoutAnimation.configureNext({
+      duration: 500,
+      create: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        property: LayoutAnimation.Properties.opacity,
+      },
+      update: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        property: LayoutAnimation.Properties.scaleXY,
+        springDamping: 0.7,
+      },
+    });
+
+    if (isLogView) {
+      // 모든 애니메이션을 부드럽게 시작
+      tagAnimations.current.forEach((animValue, journalId) => {
+        const journal = journals.find(j => j.id === journalId);
+        if (journal) {
+          const { topic, emotion } = getLogData(journal);
+          const hasValidTopic = topic && topic.trim() !== '' && topic.toLowerCase() !== 'none';
+          const hasValidEmotion = emotion && emotion.trim() !== '' && emotion.toLowerCase() !== 'none';
+          const isCurrentlyExtracting = extractingIds.has(journalId);
+          const showTags = isCurrentlyExtracting || hasValidTopic || hasValidEmotion;
+          
+          if (showTags) {
+            animValue.setValue(0);
+            Animated.timing(animValue, {
+              toValue: 1,
+              duration: 500,
+              useNativeDriver: true,
+            }).start();
+          }
+        }
+      });
+    } else {
+      // Log 뷰가 꺼지면 모든 애니메이션 초기화
+      tagAnimations.current.forEach((animValue) => {
+        Animated.timing(animValue, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+      });
+    }
+  }, [isLogView, journals, extractingIds]);
 
   const loadJournals = async (checkForExtraction: boolean = false) => {
     try {
@@ -145,12 +205,14 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
 
-    if (minutes < 1) return '방금 전';
-    if (minutes < 60) return `${minutes}분 전`;
-    if (hours < 24) return `${hours}시간 전`;
-    if (days < 7) return `${days}일 전`;
+    const dateStr = formatDate(dateString);
+    
+    if (minutes < 1) return `방금 전 · ${dateStr}`;
+    if (minutes < 60) return `${minutes}분 전 · ${dateStr}`;
+    if (hours < 24) return `${hours}시간 전 · ${dateStr}`;
+    if (days < 7) return `${days}일 전 · ${dateStr}`;
 
-    return formatDate(dateString);
+    return dateStr;
   };
 
   // 일기 목록 정렬 (최신순)
@@ -201,44 +263,105 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>EmoLog</Text>
-          <View style={styles.headerButtons}>
-            <TouchableOpacity
-              onPress={async () => {
-                const newIsLogView = !isLogView;
-                setIsLogView(newIsLogView);
-                // Log 뷰로 전환할 때만 추출 실행
-                await loadJournals(newIsLogView);
-              }}
-              style={styles.headerButton}
-            >
-              <Ionicons
-                name={isLogView ? 'toggle' : 'toggle-outline'}
-                size={24}
-                color={isLogView ? '#8B5CF6' : '#64748b'}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={onNavigateToStats}
-              style={styles.headerButton}
-            >
-              <Ionicons name="stats-chart" size={24} color="#64748b" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={onNavigateToSettings}
-              style={styles.headerButton}
-            >
-              <Ionicons name="settings" size={24} color="#64748b" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => {
-                console.log('개발자 버튼 클릭');
-                // 개발자 기능 추가 가능
-              }}
-              style={styles.headerButton}
-            >
-              <Ionicons name="code" size={24} color="#64748b" />
-            </TouchableOpacity>
-          </View>
+          {selectedMemoForAction ? (
+            <View style={styles.actionBar}>
+              <TouchableOpacity
+                onPress={() => {
+                  if (selectedMemoForAction) {
+                    const defaultEmotion: Emotion = { label: '평온', icon: 'leaf', color: '#a5b4fc' };
+                    onNavigateToJournalWrite(
+                      selectedMemoForAction.emotion || defaultEmotion,
+                      selectedMemoForAction.date,
+                      selectedMemoForAction
+                    );
+                  }
+                  setSelectedMemoForAction(null);
+                }}
+                style={styles.actionButton}
+              >
+                <Ionicons name="create-outline" size={20} color="#3B82F6" />
+                <Text style={styles.actionButtonText}>수정</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  if (selectedMemoForAction) {
+                    handleDeleteJournal(selectedMemoForAction);
+                  }
+                  setSelectedMemoForAction(null);
+                }}
+                style={styles.actionButton}
+              >
+                <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                <Text style={[styles.actionButtonText, { color: '#EF4444' }]}>삭제</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setSelectedMemoForAction(null)}
+                style={styles.actionButton}
+              >
+                <Ionicons name="close" size={20} color="#64748b" />
+                <Text style={styles.actionButtonText}>취소</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.headerButtons}>
+              <TouchableOpacity
+                onPress={async () => {
+                  const newIsLogView = !isLogView;
+                  setIsLogView(newIsLogView);
+                  // 토글 애니메이션
+                  Animated.spring(toggleAnimation, {
+                    toValue: newIsLogView ? 1 : 0,
+                    useNativeDriver: true,
+                    tension: 100,
+                    friction: 8,
+                  }).start();
+                  // Log 뷰로 전환할 때만 추출 실행
+                  await loadJournals(newIsLogView);
+                }}
+                style={styles.toggleContainer}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.toggleTrack, isLogView && styles.toggleTrackActive]}>
+                  <Animated.View
+                    style={[
+                      styles.toggleThumb,
+                      {
+                        transform: [
+                          {
+                            translateX: toggleAnimation.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0, 20],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  />
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={onNavigateToStats}
+                style={styles.headerButton}
+              >
+                <Ionicons name="stats-chart" size={24} color="#64748b" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={onNavigateToSettings}
+                style={styles.headerButton}
+              >
+                <Ionicons name="settings" size={24} color="#64748b" />
+              </TouchableOpacity>
+              {/* <TouchableOpacity
+                onPress={() => {
+                  console.log('개발자 버튼 클릭');
+                  // 개발자 기능 추가 가능
+                }}
+                style={styles.headerButton}
+              >
+                <Ionicons name="code" size={24} color="#64748b" />
+              </TouchableOpacity> */}
+            </View>
+          )}
         </View>
       </View>
 
@@ -264,63 +387,40 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
               {isLogView ? `총 ${journals.length}개의 Log` : `총 ${journals.length}개의 감정 메모`}
             </Text>
             
-            {isLogView ? (
-              // Log 뷰
-              <View style={styles.logList}>
-                {sortedJournals.map((journal) => {
-                  const { topic, emotion } = getLogData(journal);
-                  // topic이 있고 빈 문자열이 아닌지 확인 (None, "none", 빈 문자열 모두 제외)
-                  const hasValidTopic = topic && topic.trim() !== '' && topic.toLowerCase() !== 'none';
-                  // emotion이 있고 빈 문자열이 아닌지 확인
-                  const hasValidEmotion = emotion && emotion.trim() !== '' && emotion.toLowerCase() !== 'none';
-                  const isCurrentlyExtracting = extractingIds.has(journal.id);
-                  
-                  return (
-                    <View key={journal.id} style={styles.logCard}>
-                      {isCurrentlyExtracting ? (
-                        <View style={styles.logTags}>
-                          <View style={[styles.tag, styles.extractingTag, { backgroundColor: '#94a3b840' }]}>
-                            <ActivityIndicator size="small" color="#64748b" style={{ marginRight: 8 }} />
-                            <Text style={[styles.tagText, { color: '#64748b' }]}>추출 중...</Text>
-                          </View>
-                        </View>
-                      ) : (hasValidTopic || hasValidEmotion) ? (
-                        <View style={styles.logTags}>
-                          {/* topic이 유효할 때만 표시 - 회색 해시태그 */}
-                          {hasValidTopic && (
-                            <View style={[styles.tag, styles.topicTag]}>
-                              <Text style={styles.topicTagText}>#{topic}</Text>
-                            </View>
-                          )}
-                          {/* emotion이 유효할 때만 표시 - 아이콘과 함께 */}
-                          {hasValidEmotion && journal.emotion && (
-                            <View style={[styles.tag, { backgroundColor: journal.emotion.color + '40' }]}>
-                              <Ionicons name={journal.emotion.icon as any} size={14} color={journal.emotion.color} style={{ marginRight: 4 }} />
-                              <Text style={[styles.tagText, { color: journal.emotion.color }]}>{emotion}</Text>
-                            </View>
-                          )}
-                        </View>
-                      ) : null}
-                      <Text style={styles.logContent} numberOfLines={2}>
-                        {journal.content || '내용이 없습니다.'}
-                      </Text>
-                      <Text style={styles.logDate}>{formatDate(journal.date)}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            ) : (
-              // 메모 리스트
-              <View style={styles.memoList}>
-                {sortedJournals.map((journal) => (
+            {/* 메모 리스트 */}
+            <View style={styles.memoList}>
+              {sortedJournals.map((journal) => {
+                const { topic, emotion } = getLogData(journal);
+                const hasValidTopic = topic && topic.trim() !== '' && topic.toLowerCase() !== 'none';
+                const hasValidEmotion = emotion && emotion.trim() !== '' && emotion.toLowerCase() !== 'none';
+                const isCurrentlyExtracting = extractingIds.has(journal.id);
+                const showTags = isLogView && (isCurrentlyExtracting || hasValidTopic || hasValidEmotion);
+                
+                // 애니메이션 값 가져오기 또는 생성
+                if (!tagAnimations.current.has(journal.id)) {
+                  tagAnimations.current.set(journal.id, new Animated.Value(0));
+                }
+                const scaleAnim = tagAnimations.current.get(journal.id)!;
+                
+                return (
                   <TouchableOpacity
                     key={journal.id}
-                    style={styles.memoCard}
+                    style={[
+                      styles.memoCard,
+                      selectedMemoForAction?.id === journal.id && styles.memoCardSelected,
+                    ]}
                     onPress={() => {
-                      setSelectedDate(journal.date);
-                      setSelectedJournal(journal);
-                      const defaultEmotion: Emotion = { label: '평온', icon: 'leaf', color: '#a5b4fc' };
-                      onNavigateToJournalWrite(journal.emotion || defaultEmotion, journal.date, journal);
+                      if (selectedMemoForAction) {
+                        setSelectedMemoForAction(null);
+                      } else {
+                        setSelectedDate(journal.date);
+                        setSelectedJournal(journal);
+                        const defaultEmotion: Emotion = { label: '평온', icon: 'leaf', color: '#a5b4fc' };
+                        onNavigateToJournalWrite(journal.emotion || defaultEmotion, journal.date, journal);
+                      }
+                    }}
+                    onLongPress={() => {
+                      setSelectedMemoForAction(journal);
                     }}
                     activeOpacity={0.7}
                   >
@@ -328,35 +428,48 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
                       <Text style={styles.memoText} numberOfLines={4}>
                         {journal.content || '내용이 없습니다.'}
                       </Text>
-                      <Text style={styles.memoDate}>{formatRelativeTime(journal.date)}</Text>
-                    </View>
-                    <View style={styles.memoActions}>
-                      <TouchableOpacity
-                        style={styles.memoActionButton}
-                        onPress={() => {
-                          setSelectedDate(journal.date);
-                          setSelectedJournal(journal);
-                          const defaultEmotion: Emotion = { label: '평온', icon: 'leaf', color: '#a5b4fc' };
-                          onNavigateToJournalWrite(journal.emotion || defaultEmotion, journal.date, journal);
-                        }}
-                      >
-                        <Ionicons name="create-outline" size={18} color="#3B82F6" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.memoActionButton}
-                        onPress={() => handleDeleteJournal(journal)}
-                      >
-                        <Ionicons
-                          name="trash-outline"
-                          size={18}
-                          color="#EF4444"
-                        />
-                      </TouchableOpacity>
+                      <View style={styles.memoFooter}>
+                        {/* 태그 칩 (Log 뷰일 때만, 왼쪽에 배치) */}
+                        {showTags && (
+                          <Animated.View 
+                            style={[
+                              styles.tagChipContainerLeft,
+                              {
+                                opacity: scaleAnim,
+                              }
+                            ]}
+                          >
+                            {isCurrentlyExtracting ? (
+                              <View style={styles.extractingChip}>
+                                <ActivityIndicator size="small" color="#64748b" />
+                                <Text style={styles.extractingChipText}>추출 중...</Text>
+                              </View>
+                            ) : (
+                              <>
+                                {hasValidTopic && (
+                                  <View style={styles.tagChip}>
+                                    <Text style={styles.tagChipText}>#{topic}</Text>
+                                  </View>
+                                )}
+                                {hasValidEmotion && journal.emotion && (
+                                  <View style={[styles.emotionChip, { backgroundColor: journal.emotion.color + '40' }]}>
+                                    <Ionicons name={journal.emotion.icon as any} size={20} color={journal.emotion.color} />
+                                    <Text style={[styles.emotionChipText, { color: journal.emotion.color }]}>
+                                      {emotion}
+                                    </Text>
+                                  </View>
+                                )}
+                              </>
+                            )}
+                          </Animated.View>
+                        )}
+                        <Text style={styles.memoDate}>{formatRelativeTime(journal.date)}</Text>
+                      </View>
                     </View>
                   </TouchableOpacity>
-                ))}
-              </View>
-            )}
+                );
+              })}
+            </View>
           </View>
         )}
       </ScrollView>
@@ -496,6 +609,58 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  toggleContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 40,
+    height: 40,
+  },
+  toggleTrack: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#cbd5e1',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  toggleTrackActive: {
+    backgroundColor: '#3B82F6',
+  },
+  toggleThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  actionBar: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+  },
+  actionButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#3B82F6',
+  },
+  memoCardSelected: {
+    borderWidth: 2,
+    borderColor: '#3B82F6',
+    backgroundColor: '#eff6ff',
+  },
   scrollView: {
     flex: 1,
   },
@@ -556,10 +721,75 @@ const styles = StyleSheet.create({
     borderColor: '#f1f5f9',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    position: 'relative',
+  },
+  memoCardTransparent: {
+    opacity: 0.3,
   },
   memoCardContent: {
     flex: 1,
     marginRight: 12,
+  },
+  memoFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    width: '100%',
+  },
+  tagOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  tagChipContainerLeft: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
+  },
+  tagChip: {
+    backgroundColor: '#e2e8f0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  tagChipText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  emotionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  emotionChipText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  extractingChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  extractingChipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
   },
   memoText: {
     fontSize: 15,
@@ -570,20 +800,7 @@ const styles = StyleSheet.create({
   memoDate: {
     fontSize: 12,
     color: '#94a3b8',
-  },
-  memoActions: {
-    flexDirection: 'row',
-    gap: 4,
-    alignItems: 'flex-start',
-    paddingTop: 4,
-  },
-  memoActionButton: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 8,
-    backgroundColor: '#f1f5f9',
+    marginLeft: 'auto',
   },
   logList: {
     gap: 12,
