@@ -228,7 +228,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     color: '#1e293b',
-    fontFamily: 'NanumPen',
   },
   scrollView: {
     flex: 1,
@@ -253,7 +252,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1e293b',
     lineHeight: 26,
-    fontFamily: 'NanumPen',
     padding: 16,
     borderWidth: 1,
     borderColor: '#e2e8f0',
@@ -266,7 +264,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#334155',
     lineHeight: 24,
-    fontFamily: 'NanumPen',
     padding: 16,
     borderWidth: 1,
     borderColor: '#e2e8f0',
@@ -312,6 +309,5 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#fff',
-    fontFamily: 'NanumPen',
   },
 });

@@ -78,13 +78,11 @@ const styles = StyleSheet.create({
     fontSize: 48,
     fontWeight: '700',
     color: '#3B82F6',
-    fontFamily: 'NanumPen',
     marginBottom: 16,
   },
   subtitle: {
     fontSize: 16,
     color: '#64748b',
-    fontFamily: 'NanumPen',
     marginBottom: 48,
     textAlign: 'center',
   },
@@ -100,7 +98,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     fontSize: 16,
     color: '#1e293b',
-    fontFamily: 'NanumPen',
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
@@ -121,6 +118,5 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#fff',
-    fontFamily: 'NanumPen',
   },
 });

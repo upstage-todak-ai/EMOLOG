@@ -485,7 +485,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#3B82F6',
-    fontFamily: 'NanumPen',
   },
   headerButtons: {
     flexDirection: 'row',
@@ -527,14 +526,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1e293b',
     marginBottom: 8,
-    fontFamily: 'NanumPen',
   },
   emptySubtitle: {
     fontSize: 14,
     color: '#64748b',
     textAlign: 'center',
     lineHeight: 20,
-    fontFamily: 'NanumPen',
   },
   listContainer: {
     marginTop: 20,
@@ -543,7 +540,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#64748b',
     marginBottom: 16,
-    fontFamily: 'NanumPen',
   },
   memoList: {
     gap: 12,
@@ -569,13 +565,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#1e293b',
     lineHeight: 22,
-    fontFamily: 'NanumPen',
     marginBottom: 12,
   },
   memoDate: {
     fontSize: 12,
     color: '#94a3b8',
-    fontFamily: 'NanumPen',
   },
   memoActions: {
     flexDirection: 'row',
@@ -637,25 +631,21 @@ const styles = StyleSheet.create({
   topicTagText: {
     fontSize: 13,
     fontWeight: '700',
-    fontFamily: 'NanumPen',
     color: '#64748b',
   },
   tagText: {
     fontSize: 13,
     fontWeight: '700',
-    fontFamily: 'NanumPen',
   },
   logContent: {
     fontSize: 14,
     color: '#64748b',
     lineHeight: 20,
-    fontFamily: 'NanumPen',
     flex: 1,
   },
   logDate: {
     fontSize: 12,
     color: '#cbd5e1',
-    fontFamily: 'NanumPen',
     marginTop: 4,
   },
   fab: {
@@ -709,7 +699,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1e293b',
     marginBottom: 4,
-    fontFamily: 'NanumPen',
   },
   modalSubtitle: {
     fontSize: 12,
@@ -717,7 +706,6 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     textTransform: 'uppercase',
     letterSpacing: 1,
-    fontFamily: 'NanumPen',
   },
   closeButton: {
     width: 32,
@@ -749,7 +737,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginTop: 8,
-    fontFamily: 'NanumPen',
   },
   selectedEmotionContainer: {
     flexDirection: 'row',
@@ -761,7 +748,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#1e293b',
-    fontFamily: 'NanumPen',
   },
   journalContentContainer: {
     marginTop: 16,
@@ -770,7 +756,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#334155',
     lineHeight: 24,
-    fontFamily: 'NanumPen',
     marginBottom: 24,
     padding: 16,
     backgroundColor: '#f8fafc',
@@ -788,6 +773,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
-    fontFamily: 'NanumPen',
   },
 });

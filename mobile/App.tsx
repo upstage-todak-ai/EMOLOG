@@ -16,15 +16,17 @@ export default function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 폰트 로드 (ongle_font.ttf)
-  const [fontsLoaded] = useFonts({
-    'NanumPen': require('./assets/fonts/ongle_font.ttf'),
-  });
+  // 폰트 로드 (나눔고딕 - 시스템 기본 폰트 사용)
+  // TODO: 나눔고딕 폰트 파일 추가 시 아래 주석 해제
+  // const [fontsLoaded] = useFonts({
+  //   'NanumGothic': require('./assets/fonts/NanumGothic.ttf'),
+  // });
+  const fontsLoaded = true; // 시스템 폰트 사용 시 즉시 로드됨
 
   // 앱 시작 시 저장된 user_id 확인
   useEffect(() => {
     const checkLogin = async () => {
-      if (!fontsLoaded) return;
+      // 폰트 로딩 대기 제거 (시스템 폰트 사용)
       
       try {
         const userId = await getUserId();
@@ -42,10 +44,10 @@ export default function App() {
     };
     
     checkLogin();
-  }, [fontsLoaded]);
+  }, []); // fontsLoaded 의존성 제거
 
-  // 폰트가 로드될 때까지 대기
-  if (!fontsLoaded || isLoading) {
+  // 로딩 대기
+  if (isLoading) {
     return null; // 또는 로딩 화면 표시
   }
 

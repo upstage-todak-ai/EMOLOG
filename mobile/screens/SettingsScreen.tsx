@@ -101,7 +101,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#1e293b',
-    fontFamily: 'NanumPen',
   },
   placeholder: {
     width: 40,
@@ -133,7 +132,6 @@ const styles = StyleSheet.create({
   menuItemText: {
     fontSize: 16,
     color: '#1e293b',
-    fontFamily: 'NanumPen',
   },
   logoutText: {
     color: '#EF4444',

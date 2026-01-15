@@ -330,7 +330,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     color: '#1e293b',
-    fontFamily: 'NanumPen',
   },
   backButton: {
     width: 40,
@@ -368,14 +367,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1e293b',
     marginBottom: 8,
-    fontFamily: 'NanumPen',
   },
   emptySubtitle: {
     fontSize: 14,
     color: '#64748b',
     textAlign: 'center',
     lineHeight: 20,
-    fontFamily: 'NanumPen',
   },
   statCard: {
     backgroundColor: '#fff',
@@ -394,7 +391,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1e293b',
     marginBottom: 16,
-    fontFamily: 'NanumPen',
   },
   statContent: {
     gap: 12,
@@ -418,13 +414,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#334155',
-    fontFamily: 'NanumPen',
   },
   statValue: {
     fontSize: 14,
     fontWeight: '600',
     color: '#475569',
-    fontFamily: 'NanumPen',
   },
   emotionStatItem: {
     flexDirection: 'row',
@@ -441,7 +435,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#334155',
-    fontFamily: 'NanumPen',
   },
   barContainer: {
     flex: 1,
@@ -460,7 +453,6 @@ const styles = StyleSheet.create({
     color: '#475569',
     width: 32,
     textAlign: 'right',
-    fontFamily: 'NanumPen',
   },
   reportCard: {
     backgroundColor: '#fff',
@@ -498,13 +490,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#fff',
-    fontFamily: 'NanumPen',
   },
   reportTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#1e293b',
-    fontFamily: 'NanumPen',
   },
   periodSelector: {
     flexDirection: 'row',
@@ -523,7 +513,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#64748b',
-    fontFamily: 'NanumPen',
   },
   periodButtonTextActive: {
     color: '#fff',
@@ -540,21 +529,19 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   reportContentTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 24,
+    fontWeight: '700',
     color: '#1e293b',
-    fontFamily: 'NanumPen',
+    marginBottom: 12,
   },
   reportContentText: {
-    fontSize: 14,
+    fontSize: 19,
     color: '#475569',
-    lineHeight: 20,
-    fontFamily: 'NanumPen',
+    lineHeight: 30,
   },
   reportHint: {
     fontSize: 12,
     color: '#94a3b8',
     textAlign: 'center',
-    fontFamily: 'NanumPen',
   },
 });
