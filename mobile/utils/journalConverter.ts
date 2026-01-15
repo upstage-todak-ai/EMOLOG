@@ -38,6 +38,7 @@ export function backendToJournalEntry(backend: BackendDiaryEntry): JournalEntry 
     date: dateStr,
     emotion: emotionMap[backend.emotion],
     content: backend.content,
+    topic: backend.topic || '',  // 백엔드에서 추출한 topic
     createdAt: backend.created_at || new Date().toISOString(),
     updatedAt: backend.created_at || new Date().toISOString(),
   };
@@ -45,13 +46,13 @@ export function backendToJournalEntry(backend: BackendDiaryEntry): JournalEntry 
 
 /**
  * 프론트엔드 일기 데이터를 백엔드 형식으로 변환
+ * 새로 생성할 때는 emotion을 보내지 않아서 extractor가 자동으로 추출하도록 함
  */
 export function journalEntryToBackend(
   journal: Omit<JournalEntry, 'id' | 'createdAt' | 'updatedAt'>,
-  userId: string
-): { user_id: string; date: string; content: string; emotion: BackendEmotion } {
-  const backendEmotion = reverseEmotionMap[journal.emotion.label] || 'CALM';
-  
+  userId: string,
+  isNew: boolean = true  // 새로 생성하는지 여부
+): { user_id: string; date: string; content: string; emotion?: BackendEmotion } {
   // date를 ISO datetime 형식으로 변환 (백엔드가 datetime을 기대)
   // YYYY-MM-DD 형식을 YYYY-MM-DDTHH:mm:ss 형식으로 변환
   let dateStr = journal.date;
@@ -60,12 +61,18 @@ export function journalEntryToBackend(
     dateStr = `${dateStr}T00:00:00`;
   }
   
-  return {
+  const result: { user_id: string; date: string; content: string; emotion?: BackendEmotion } = {
     user_id: userId,
     date: dateStr,
     content: journal.content,
-    emotion: backendEmotion,
   };
+  
+  // 수정할 때만 emotion을 보냄 (새로 생성할 때는 extractor가 추출)
+  if (!isNew && journal.emotion) {
+    result.emotion = reverseEmotionMap[journal.emotion.label] || 'CALM';
+  }
+  
+  return result;
 }
 
 /**

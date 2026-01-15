@@ -120,21 +120,11 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
     return new Date(b.date).getTime() - new Date(a.date).getTime();
   });
 
-  // Log 데이터 추출 (간단한 키워드 기반)
+  // Log 데이터 추출 (백엔드에서 추출한 topic 사용)
   const getLogData = (journal: JournalEntry) => {
-    const content = journal.content.toLowerCase();
-    let topic = 'none';
-    let emotion = journal.emotion.label;
-
-    if (content.includes('시험') || content.includes('공부')) {
-      topic = '학업';
-    } else if (content.includes('친구') || content.includes('사람')) {
-      topic = '대인관계';
-    } else if (content.includes('피곤') || content.includes('졸리')) {
-      topic = '일상';
-    } else if (content.length > 10) {
-      topic = '일상';
-    }
+    // 백엔드에서 추출한 topic 사용 (없으면 빈 문자열)
+    const topic = journal.topic || '';
+    const emotion = journal.emotion.label;
 
     return { topic, emotion };
   };
@@ -231,12 +221,18 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
                   return (
                     <View key={journal.id} style={styles.logCard}>
                       <View style={styles.logTags}>
-                        <View style={[styles.tag, { backgroundColor: getTopicColor(topic) + '20', borderColor: getTopicColor(topic) + '40' }]}>
-                          <Text style={[styles.tagText, { color: getTopicColor(topic) }]}>{topic}</Text>
-                        </View>
-                        <View style={[styles.tag, { backgroundColor: getEmotionColor(emotion) + '20', borderColor: getEmotionColor(emotion) + '40' }]}>
-                          <Text style={[styles.tagText, { color: getEmotionColor(emotion) }]}>{emotion}</Text>
-                        </View>
+                        {/* topic이 있고 "none"이 아닐 때만 표시 */}
+                        {topic && topic !== 'none' && topic.trim() !== '' && (
+                          <View style={[styles.tag, { backgroundColor: getTopicColor(topic) + '20', borderColor: getTopicColor(topic) + '40' }]}>
+                            <Text style={[styles.tagText, { color: getTopicColor(topic) }]}>{topic}</Text>
+                          </View>
+                        )}
+                        {/* emotion이 있고 "none"이 아닐 때만 표시 */}
+                        {emotion && emotion !== 'none' && emotion.trim() !== '' && (
+                          <View style={[styles.tag, { backgroundColor: getEmotionColor(emotion) + '20', borderColor: getEmotionColor(emotion) + '40' }]}>
+                            <Text style={[styles.tagText, { color: getEmotionColor(emotion) }]}>{emotion}</Text>
+                          </View>
+                        )}
                       </View>
                       <Text style={styles.logContent} numberOfLines={2}>
                         {journal.content || '내용이 없습니다.'}

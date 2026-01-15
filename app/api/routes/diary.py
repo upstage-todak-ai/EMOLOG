@@ -2,8 +2,9 @@ from fastapi import APIRouter, HTTPException
 from typing import List
 from datetime import datetime
 import time
-from app.models.schemas import DiaryEntry, DiaryEntryCreate, DiaryEntryUpdate
+from app.models.schemas import DiaryEntry, DiaryEntryCreate, DiaryEntryUpdate, Emotion
 from app.repository.diary_repository import get_diary_repository
+from app.service.extractor_service import extract_diary_info
 from app.core.logging import get_logger, log_api_request
 
 # 라우터 생성 (prefix: /api/diary)
@@ -26,6 +27,40 @@ def create_diary(diary: DiaryEntryCreate):
     """
     start_time = time.time()
     try:
+        # emotion이 없으면 extractor로 자동 추출
+        if diary.emotion is None:
+            logger.info(f"[create_diary] 🚀 Extractor 호출 시작 - user_id={diary.user_id}")
+            logger.info(f"[create_diary] 📝 입력 내용: {diary.content}")
+            
+            extracted = extract_diary_info(
+                diary_content=diary.content,
+                diary_datetime=diary.date.strftime("%Y-%m-%d %H:%M:%S") if isinstance(diary.date, datetime) else str(diary.date)
+            )
+            
+            logger.info(f"[create_diary] 📦 Extractor 반환값: {extracted}")
+            
+            # 추출된 emotion을 Emotion enum으로 변환
+            emotion_str = extracted.get("emotion", "").strip().upper()
+            logger.info(f"[create_diary] 🔄 Emotion 변환 시도: '{emotion_str}' -> Emotion enum")
+            
+            try:
+                # LLM이 반환한 enum 값을 직접 사용
+                diary.emotion = Emotion[emotion_str]
+                logger.info(f"[create_diary] ✅ Emotion 변환 성공: {diary.emotion.value}")
+            except (KeyError, AttributeError) as e:
+                # enum에 없는 값이면 기본값 사용
+                logger.warning(f"[create_diary] ⚠️ 잘못된 emotion 값: '{emotion_str}', 기본값 CALM 사용")
+                logger.warning(f"[create_diary] ⚠️ 예외: {type(e).__name__}: {e}")
+                diary.emotion = Emotion.CALM
+            
+            # 추출된 topic 저장
+            diary.topic = extracted.get("topic", "")
+            logger.info(f"[create_diary] ✅ 최종 결과:")
+            logger.info(f"  📌 topic: {diary.topic}")
+            logger.info(f"  😊 emotion: {diary.emotion.value}")
+        else:
+            logger.info(f"[create_diary] ℹ️ emotion이 이미 설정됨: {diary.emotion.value}, extractor 호출 안 함")
+        
         repository = get_diary_repository()
         new_diary = repository.create(diary)
         duration_ms = (time.time() - start_time) * 1000

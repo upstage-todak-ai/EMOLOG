@@ -15,6 +15,7 @@ export interface BackendDiaryEntry {
   date: string;
   content: string;
   emotion: BackendEmotion;
+  topic?: string;  // 추출된 주제
   created_at?: string;
 }
 
@@ -22,7 +23,7 @@ export interface BackendDiaryCreate {
   user_id: string;
   date: string;
   content: string;
-  emotion: BackendEmotion;
+  emotion?: BackendEmotion;  // optional: 없으면 extractor가 자동으로 추출
 }
 
 export interface BackendDiaryUpdate {

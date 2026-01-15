@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import diary, stats, log, calendar
-# extractor, report는 langgraph가 필요하므로 일단 주석 처리
-# from app.api.routes import extractor, report
+from app.api.routes import diary, stats, log, calendar, extractor
+# report는 langgraph가 필요하므로 일단 주석 처리
+# from app.api.routes import report
 from app.core.firebase import initialize_firebase
 from app.core.logging import setup_logging
 
@@ -34,7 +34,7 @@ app.include_router(diary.router)
 app.include_router(stats.router)
 app.include_router(log.router)
 app.include_router(calendar.router)
-# app.include_router(extractor.router)
+app.include_router(extractor.router)
 # app.include_router(report.router)
 
 @app.get("/")
