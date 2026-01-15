@@ -279,23 +279,24 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
                     <View key={journal.id} style={styles.logCard}>
                       {isCurrentlyExtracting ? (
                         <View style={styles.logTags}>
-                          <View style={[styles.tag, styles.extractingTag]}>
-                            <ActivityIndicator size="small" color="#94a3b8" style={{ marginRight: 8 }} />
-                            <Text style={[styles.tagText, { color: '#94a3b8' }]}>추출 중...</Text>
+                          <View style={[styles.tag, styles.extractingTag, { backgroundColor: '#94a3b840' }]}>
+                            <ActivityIndicator size="small" color="#64748b" style={{ marginRight: 8 }} />
+                            <Text style={[styles.tagText, { color: '#64748b' }]}>추출 중...</Text>
                           </View>
                         </View>
                       ) : (hasValidTopic || hasValidEmotion) ? (
                         <View style={styles.logTags}>
-                          {/* topic이 유효할 때만 표시 */}
+                          {/* topic이 유효할 때만 표시 - 회색 해시태그 */}
                           {hasValidTopic && (
-                            <View style={[styles.tag, { backgroundColor: getTopicColor(topic) + '20', borderColor: getTopicColor(topic) + '40', marginRight: 8 }]}>
-                              <Text style={[styles.tagText, { color: getTopicColor(topic) }]}>{topic}</Text>
+                            <View style={[styles.tag, styles.topicTag]}>
+                              <Text style={styles.topicTagText}>#{topic}</Text>
                             </View>
                           )}
-                          {/* emotion이 유효할 때만 표시 */}
-                          {hasValidEmotion && (
-                            <View style={[styles.tag, { backgroundColor: getEmotionColor(emotion) + '20', borderColor: getEmotionColor(emotion) + '40' }]}>
-                              <Text style={[styles.tagText, { color: getEmotionColor(emotion) }]}>{emotion}</Text>
+                          {/* emotion이 유효할 때만 표시 - 아이콘과 함께 */}
+                          {hasValidEmotion && journal.emotion && (
+                            <View style={[styles.tag, { backgroundColor: journal.emotion.color + '40' }]}>
+                              <Ionicons name={journal.emotion.icon as any} size={14} color={journal.emotion.color} style={{ marginRight: 4 }} />
+                              <Text style={[styles.tagText, { color: journal.emotion.color }]}>{emotion}</Text>
                             </View>
                           )}
                         </View>
@@ -608,21 +609,40 @@ const styles = StyleSheet.create({
   },
   logTags: {
     flexDirection: 'row',
-    marginBottom: 8,
+    marginBottom: 12,
+    flexWrap: 'wrap',
   },
   extractingTag: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   tag: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 0,
+    marginRight: 8,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  topicTag: {
+    backgroundColor: '#e2e8f0',
+  },
+  topicTagText: {
+    fontSize: 13,
+    fontWeight: '700',
+    fontFamily: 'NanumPen',
+    color: '#64748b',
   },
   tagText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     fontFamily: 'NanumPen',
   },
   logContent: {
