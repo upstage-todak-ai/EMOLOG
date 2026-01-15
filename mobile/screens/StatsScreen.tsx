@@ -284,11 +284,31 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
                 colors={['#F3E8FF', '#FCE7F3']}
                 style={styles.reportContent}
               >
-                <View style={styles.reportContentHeader}>
-                  <Ionicons name="calendar" size={20} color="#8B5CF6" />
-                  <Text style={styles.reportContentTitle}>{report?.title || ''}</Text>
-                </View>
-                <Text style={styles.reportContentText}>{report?.content || ''}</Text>
+                {generatingReport ? (
+                  <View style={styles.reportLoading}>
+                    <ActivityIndicator size="large" color="#8B5CF6" />
+                    <Text style={styles.reportLoadingText}>리포트 생성 중...</Text>
+                  </View>
+                ) : report?.content ? (
+                  <>
+                    {/* 한줄요약 (리포트 첫 줄) */}
+                    {(() => {
+                      const lines = report.content.split('\n\n');
+                      const summary = lines[0] || '';
+                      const body = lines.slice(1).join('\n\n');
+                      return (
+                        <>
+                          {summary && (
+                            <Text style={styles.reportSummary}>"{summary}"</Text>
+                          )}
+                          {body && (
+                            <Text style={styles.reportContentText}>{body}</Text>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </>
+                ) : null}
               </LinearGradient>
 
               <Text style={styles.reportHint}>
@@ -522,22 +542,27 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 12,
   },
-  reportContentHeader: {
-    flexDirection: 'row',
+  reportLoading: {
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
+    justifyContent: 'center',
+    paddingVertical: 40,
   },
-  reportContentTitle: {
-    fontSize: 24,
+  reportLoadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#64748b',
+  },
+  reportSummary: {
+    fontSize: 22,
     fontWeight: '700',
     color: '#1e293b',
-    marginBottom: 12,
+    marginBottom: 16,
+    lineHeight: 30,
   },
   reportContentText: {
-    fontSize: 19,
+    fontSize: 16,
     color: '#475569',
-    lineHeight: 30,
+    lineHeight: 24,
   },
   reportHint: {
     fontSize: 12,

@@ -35,13 +35,28 @@ def evaluate_quality(state: ReportEvaluationState) -> ReportEvaluationState:
 === 평가할 리포트 ===
 {report}
 
+=== 리포트 구조 (필수) ===
+리포트는 다음 구조를 따라야 합니다:
+1. **첫 문장 요약**: 가장 중요한 패턴이나 통찰을 한 문장으로 요약
+2. **본론 문단**: 구체적인 관찰과 패턴 설명 (3-5문장)
+3. **결론 문단**: 전체적인 맥락에서의 해석이나 마무리 (3-5문장)
+
 === Quality 평가 기준 ===
-1. 유용성: 리포트가 일기 데이터를 제대로 반영하고 있는가? 통찰력이 있는가?
-   - 구체적인 날짜와 감정 변화가 명시되어 있는가?
+1. **구조 준수 (필수)**: 리포트가 "첫 문장 요약 + 본론 + 결론" 구조를 따르는가?
+   - 첫 문장이 한 줄로 명확한 요약인가?
+   - **첫 문장이 강렬하고 임팩트 있는가?** (짧고 간결, 최대 30-40자, 감정적 공감 유도)
+   - 평범한 서술형이 아닌 시적이고 파워풀한 표현인가?
+   - 본론과 결론이 각각 하나의 문단으로 구성되어 있는가?
+   - 각 문단이 \n\n로 구분되어 있는가?
+2. **유용성**: 리포트가 일기 데이터를 제대로 반영하고 있는가? 통찰력이 있는가?
    - 단순 통계 나열이 아닌 패턴과 관계 추론이 있는가?
-   - 검증 가능한 인사이트(날짜 참조 포함)가 있는가?
-2. 명확성: 리포트가 읽기 쉽고 이해하기 쉬운가? 구조가 명확한가?
-3. 완전성: 필요한 정보가 누락되지 않았는가?
+   - 감정 변화나 시간 흐름이 명확히 드러나는가?
+3. **명확성**: 리포트가 읽기 쉽고 이해하기 쉬운가?
+   - 문장이 자연스럽고 따뜻한 톤인가?
+   - 구체적인 날짜 대신 상대적 표현을 사용하는가?
+   - **개발 용어나 기술 용어가 없는가?** (예: "JOY", "ANXIETY", "데이터", "분석" 등 영어 코드나 기술 용어 사용 시 감점)
+   - 자연스러운 한국어로 감정을 표현하는가? (예: "기쁨", "불안", "평온함" 등)
+4. **완전성**: 필요한 정보가 누락되지 않았는가?
 
 JSON 형식:
 {{
@@ -77,6 +92,10 @@ JSON 형식:
                         end_idx = i + 1
                         break
             response_text = response_text[start_idx:end_idx]
+        
+        # 제어 문자 제거 (JSON 파싱 오류 방지)
+        import re
+        response_text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', response_text)
         
         result_json = json.loads(response_text)
         state["quality_score"] = float(result_json.get("score", 0.5))
@@ -149,6 +168,10 @@ JSON 형식:
                         end_idx = i + 1
                         break
             response_text = response_text[start_idx:end_idx]
+        
+        # 제어 문자 제거 (JSON 파싱 오류 방지)
+        import re
+        response_text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', response_text)
         
         result_json = json.loads(response_text)
         state["safety_score"] = float(result_json.get("score", 0.5))
