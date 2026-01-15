@@ -7,7 +7,7 @@ import { getAllJournals, getJournalByDate, deleteJournal } from '../services/jou
 import { JournalEntry, Emotion } from '../types/journal';
 
 type HomeScreenProps = {
-  onNavigateToSettings?: () => void;
+  onNavigateToSettings: () => void;
   onNavigateToStats: () => void;
   onNavigateToJournalWrite: (emotion: Emotion, selectedDate?: string, existingJournal?: JournalEntry | null) => void;
 };
@@ -192,14 +192,12 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
             >
               <Ionicons name="stats-chart" size={24} color="#64748b" />
             </TouchableOpacity>
-            {onNavigateToSettings && (
-              <TouchableOpacity
-                onPress={onNavigateToSettings}
-                style={styles.headerButton}
-              >
-                <Ionicons name="settings" size={24} color="#64748b" />
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              onPress={onNavigateToSettings}
+              style={styles.headerButton}
+            >
+              <Ionicons name="settings" size={24} color="#64748b" />
+            </TouchableOpacity>
           </View>
         </View>
       </View>

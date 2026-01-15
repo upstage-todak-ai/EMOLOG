@@ -42,7 +42,10 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
   const loadStats = async () => {
     try {
       setLoading(true);
-      const userId = getUserId();
+      const userId = await getUserId();
+      if (!userId) {
+        throw new Error('user_id가 설정되지 않았습니다.');
+      }
       const [statsData, reportData] = await Promise.all([
         getStats(userId, reportPeriod),
         getReport(userId, reportPeriod),

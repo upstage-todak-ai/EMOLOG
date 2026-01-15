@@ -20,7 +20,10 @@ import { backendToJournalEntry, journalEntryToBackend, emotionLabelToBackend } f
  */
 export const getAllJournals = async (): Promise<JournalEntry[]> => {
   try {
-    const userId = getUserId();
+    const userId = await getUserId();
+    if (!userId) {
+      throw new Error('user_id가 설정되지 않았습니다.');
+    }
     const backendEntries = await getDiaries(userId);
     return backendEntries.map(backendToJournalEntry);
   } catch (error) {
@@ -49,7 +52,10 @@ export const createJournal = async (
   entry: Omit<JournalEntry, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<JournalEntry> => {
   try {
-    const userId = getUserId();
+    const userId = await getUserId();
+    if (!userId) {
+      throw new Error('user_id가 설정되지 않았습니다.');
+    }
     // 새로 생성할 때는 emotion을 보내지 않아서 extractor가 자동으로 추출하도록 함
     const backendEntry = journalEntryToBackend(entry, userId, true);
     const created = await createDiary(backendEntry);
