@@ -3,8 +3,9 @@ import { StyleSheet, Text, TouchableOpacity, View, Alert, ActivityIndicator, Tex
 import { useState, useRef, useEffect } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as Calendar from 'expo-calendar';
 import { clearUserId, getUserId } from '../services/userService';
-import { testNotification } from '../services/api';
+import { testNotification, createCalendarEventsBatch } from '../services/api';
 
 type SettingsScreenProps = {
   onBack: () => void;
@@ -14,6 +15,7 @@ type SettingsScreenProps = {
 
 export default function SettingsScreen({ onBack, onLogout, onShowNotification }: SettingsScreenProps) {
   const [testing, setTesting] = useState(false);
+  const [syncingCalendar, setSyncingCalendar] = useState(false);
   const [customTime, setCustomTime] = useState('');
   const [notificationVisible, setNotificationVisible] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
@@ -122,6 +124,89 @@ export default function SettingsScreen({ onBack, onLogout, onShowNotification }:
     }
   };
 
+  const handleSyncCalendar = async () => {
+    try {
+      setSyncingCalendar(true);
+      const userId = await getUserId();
+      if (!userId) {
+        Alert.alert('오류', '사용자 ID를 찾을 수 없습니다.');
+        return;
+      }
+
+      // 캘린더 권한 요청
+      const { status } = await Calendar.requestCalendarPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('권한 필요', '캘린더 접근 권한이 필요합니다.');
+        return;
+      }
+
+      // 캘린더 목록 가져오기
+      const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+      if (calendars.length === 0) {
+        Alert.alert('캘린더 없음', '캘린더를 찾을 수 없습니다.');
+        return;
+      }
+
+      // 오늘부터 30일 후까지의 이벤트 가져오기
+      const now = new Date();
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + 30);
+
+      const events = await Calendar.getEventsAsync(
+        calendars.map(cal => cal.id),
+        now,
+        endDate
+      );
+
+      if (events.length === 0) {
+        Alert.alert('이벤트 없음', '동기화할 캘린더 이벤트가 없습니다.');
+        return;
+      }
+
+      // 이벤트를 백엔드 형식으로 변환
+      const eventsToSync = events.map(event => {
+        // 이벤트 제목에서 타입 추정 (간단한 키워드 매칭)
+        let eventType: 'PERFORMANCE' | 'SOCIAL' | 'CELEBRATION' | 'HEALTH' | 'LEISURE' | 'ROUTINE' = 'ROUTINE';
+        const title = event.title?.toLowerCase() || '';
+        
+        if (title.includes('회의') || title.includes('면접') || title.includes('발표') || title.includes('시험') || title.includes('평가')) {
+          eventType = 'PERFORMANCE';
+        } else if (title.includes('모임') || title.includes('만남') || title.includes('친구') || title.includes('식사')) {
+          eventType = 'SOCIAL';
+        } else if (title.includes('생일') || title.includes('기념일') || title.includes('결혼') || title.includes('축하')) {
+          eventType = 'CELEBRATION';
+        } else if (title.includes('병원') || title.includes('약속') || title.includes('검진') || title.includes('치료')) {
+          eventType = 'HEALTH';
+        } else if (title.includes('여행') || title.includes('휴가') || title.includes('휴식') || title.includes('놀이')) {
+          eventType = 'LEISURE';
+        }
+
+        return {
+          user_id: userId,
+          title: event.title || '제목 없음',
+          start_date: event.startDate instanceof Date ? event.startDate.toISOString() : new Date(event.startDate).toISOString(),
+          end_date: event.endDate instanceof Date ? event.endDate.toISOString() : new Date(event.endDate).toISOString(),
+          type: eventType,
+          source_event_id: event.id || undefined,
+        };
+      });
+
+      // 배치로 전송
+      const result = await createCalendarEventsBatch(eventsToSync);
+      
+      Alert.alert(
+        '동기화 완료',
+        `캘린더 이벤트 ${result.length}개가 동기화되었습니다.`,
+        [{ text: '확인' }]
+      );
+    } catch (error: any) {
+      console.error('캘린더 동기화 실패:', error);
+      Alert.alert('오류', error.message || '캘린더 동기화에 실패했습니다.');
+    } finally {
+      setSyncingCalendar(false);
+    }
+  };
+
   const handleLogout = () => {
     Alert.alert(
       '로그아웃',
@@ -194,6 +279,22 @@ export default function SettingsScreen({ onBack, onLogout, onShowNotification }:
           <View style={styles.menuItemLeft}>
             <Ionicons name="notifications" size={24} color="#475569" />
             <Text style={styles.menuItemText}>테스트2</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.menuItem, styles.menuItemMargin]}
+          onPress={handleSyncCalendar}
+          activeOpacity={0.7}
+          disabled={syncingCalendar}
+        >
+          <View style={styles.menuItemLeft}>
+            <Ionicons name="calendar-outline" size={24} color="#475569" />
+            <Text style={styles.menuItemText}>캘린더 동기화</Text>
+            {syncingCalendar && (
+              <ActivityIndicator size="small" color="#475569" style={{ marginLeft: 12 }} />
+            )}
           </View>
           <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
         </TouchableOpacity>

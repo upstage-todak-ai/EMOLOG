@@ -223,6 +223,47 @@ def update_calendar_event(event_id: str, updates: CalendarEventUpdate):
         raise HTTPException(status_code=500, detail="캘린더 이벤트 수정에 실패했습니다.")
 
 
+@router.post("/events/batch", response_model=List[CalendarEvent], status_code=201)
+def create_calendar_events_batch(events: List[CalendarEventCreate]):
+    """캘린더 이벤트 일괄 생성 API"""
+    start_time = time.time()
+    try:
+        repository = get_calendar_repository()
+        created_events = []
+        for event in events:
+            try:
+                created_event = repository.create(event)
+                created_events.append(created_event)
+            except Exception as e:
+                logger.warning(f"캘린더 이벤트 생성 실패 (건너뜀): {event.title} - {str(e)}")
+                continue
+        
+        duration_ms = (time.time() - start_time) * 1000
+        user_id = events[0].user_id if events else None
+        log_api_request(
+            logger,
+            method="POST",
+            path="/api/calendar/events/batch",
+            user_id=user_id,
+            status_code=201,
+            duration_ms=duration_ms,
+            count=len(created_events)
+        )
+        return created_events
+    except Exception as e:
+        duration_ms = (time.time() - start_time) * 1000
+        logger.error(f"캘린더 이벤트 일괄 생성 실패: {str(e)}", exc_info=True)
+        log_api_request(
+            logger,
+            method="POST",
+            path="/api/calendar/events/batch",
+            user_id=events[0].user_id if events else None,
+            status_code=500,
+            duration_ms=duration_ms
+        )
+        raise HTTPException(status_code=500, detail="캘린더 이벤트 일괄 생성에 실패했습니다.")
+
+
 @router.delete("/events/{event_id}", status_code=204)
 def delete_calendar_event(event_id: str):
     """캘린더 이벤트 삭제 API"""

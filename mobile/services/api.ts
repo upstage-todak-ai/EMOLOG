@@ -368,3 +368,35 @@ export async function testNotification(userId: string, currentTime?: string): Pr
   }
   return response.json();
 }
+
+/**
+ * 캘린더 이벤트 생성 요청
+ */
+export interface BackendCalendarEventCreate {
+  user_id: string;
+  title: string;
+  start_date: string; // ISO datetime string
+  end_date: string; // ISO datetime string
+  type: 'PERFORMANCE' | 'SOCIAL' | 'CELEBRATION' | 'HEALTH' | 'LEISURE' | 'ROUTINE';
+  source_event_id?: string;
+}
+
+/**
+ * 캘린더 이벤트 일괄 생성
+ */
+export async function createCalendarEventsBatch(events: BackendCalendarEventCreate[]): Promise<any[]> {
+  const response = await fetch(`${API_BASE_URL}/api/calendar/events/batch`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(events),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('캘린더 이벤트 일괄 생성 API 에러:', response.status, errorText);
+    throw new Error(`캘린더 이벤트 일괄 생성 실패: ${errorText}`);
+  }
+  return response.json();
+}
