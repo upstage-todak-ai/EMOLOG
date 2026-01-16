@@ -5,7 +5,6 @@ import { getStats, getReport, generateWeeklyReport, getLatestReport, getPrevious
 import { getUserId } from '../services/userService';
 import { getAllJournals } from '../services/journalService';
 import { emotionLabelToBackend } from '../utils/journalConverter';
-import { saveReport, saveStats, getSavedReports, getSavedStats, SavedReport, SavedStats, hasCurrentMonthStats } from '../services/savedRecordsService';
 import { useState, useEffect } from 'react';
 
 type Emotion = {
@@ -44,7 +43,6 @@ const TOPICS: Topic[] = [
 ];
 
 export default function StatsScreen({ onBack }: StatsScreenProps) {
-  const [activeTab, setActiveTab] = useState<'current' | 'records'>('current'); // 탭 상태
   const [stats, setStats] = useState<{
     emotion_stats: Array<{ emotion: string; count: number }>;
     topic_stats: Array<{ topic: string; count: number }>;
@@ -57,21 +55,10 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
   const [showInsightsModal, setShowInsightsModal] = useState(false);
   const [selectedEvidenceDate, setSelectedEvidenceDate] = useState<string | null>(null);
   const [evidenceJournal, setEvidenceJournal] = useState<{ date: string; content: string } | null>(null);
-  // 기록 페이지 관련 상태
-  const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
-  const [savedStats, setSavedStats] = useState<SavedStats[]>([]);
-  const [loadingRecords, setLoadingRecords] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<{ type: 'report' | 'stats'; data: SavedReport | SavedStats } | null>(null);
 
   useEffect(() => {
     loadStats();
   }, []);
-
-  useEffect(() => {
-    if (activeTab === 'records') {
-      loadRecords();
-    }
-  }, [activeTab]);
 
   const loadStats = async () => {
     try {
@@ -108,31 +95,6 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
           topic_stats: statsData.topic_stats,
           total_count: statsData.total_count,
         });
-
-        // 통계 자동 저장 (한달 간격)
-        try {
-          const hasCurrentStats = await hasCurrentMonthStats();
-          if (!hasCurrentStats && statsData.total_count > 0) {
-            // 현재 월 통계가 없고 데이터가 있으면 자동 저장
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = now.getMonth();
-            const periodStart = new Date(year, month, 1).toISOString().split('T')[0];
-            const periodEnd = new Date(year, month + 1, 0).toISOString().split('T')[0];
-
-            await saveStats({
-              emotion_stats: convertedEmotionStats,
-              topic_stats: statsData.topic_stats,
-              total_count: statsData.total_count,
-              period_start: periodStart,
-              period_end: periodEnd,
-            });
-            console.log('[통계 자동 저장] 현재 월 통계 저장 완료');
-          }
-        } catch (error) {
-          console.error('[통계 자동 저장] 실패:', error);
-          // 에러가 나도 통계는 계속 표시
-        }
       } else {
         setStats({
           emotion_stats: [],
@@ -250,43 +212,6 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
     }
   };
 
-  const handleSaveReport = async () => {
-    if (!report) {
-      Alert.alert('알림', '저장할 레포트가 없습니다.');
-      return;
-    }
-
-    try {
-      await saveReport({
-        title: report.title || '감정 레포트',
-        content: report.content,
-        insights: report.insights || [],
-        period_start: report.period_start || '',
-        period_end: report.period_end || '',
-      });
-      Alert.alert('성공', '레포트가 기록 페이지에 저장되었습니다.');
-    } catch (error) {
-      console.error('레포트 저장 실패:', error);
-      Alert.alert('오류', `레포트 저장에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
-    }
-  };
-
-  const loadRecords = async () => {
-    try {
-      setLoadingRecords(true);
-      const [reports, stats] = await Promise.all([
-        getSavedReports(),
-        getSavedStats(),
-      ]);
-      setSavedReports(reports);
-      setSavedStats(stats);
-    } catch (error) {
-      console.error('기록 로드 실패:', error);
-    } finally {
-      setLoadingRecords(false);
-    }
-  };
-
   const totalCount = stats?.total_count || 0;
   const topicData = stats?.topic_stats.filter(item => item.count > 0) || [];
   const emotionData = stats?.emotion_stats.filter(item => item.count > 0) || [];
@@ -305,31 +230,9 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
           </TouchableOpacity>
           <View>
             <Text style={styles.headerTitle}>통계 및 리포트</Text>
-            <Text style={styles.headerSubtitle}>
-              {activeTab === 'current' ? '최근 1달' : '저장된 기록'}
-            </Text>
+            <Text style={styles.headerSubtitle}>최근 1달</Text>
           </View>
         </View>
-      </View>
-
-      {/* 탭 UI */}
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'current' && styles.tabActive]}
-          onPress={() => setActiveTab('current')}
-        >
-          <Text style={[styles.tabText, activeTab === 'current' && styles.tabTextActive]}>
-            현재 통계/리포트
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'records' && styles.tabActive]}
-          onPress={() => setActiveTab('records')}
-        >
-          <Text style={[styles.tabText, activeTab === 'records' && styles.tabTextActive]}>
-            기록
-          </Text>
-        </TouchableOpacity>
       </View>
 
       <ScrollView 
@@ -337,93 +240,7 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {activeTab === 'records' ? (
-          /* 기록 페이지 */
-          loadingRecords ? (
-            <View style={styles.emptyState}>
-              <ActivityIndicator size="large" color="#3B82F6" />
-            </View>
-          ) : savedReports.length === 0 && savedStats.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>저장된 기록이 없어요</Text>
-              <Text style={styles.emptySubtitle}>
-                레포트를 생성하고 저장하거나{'\n'}
-                통계가 자동으로 저장될 때까지 기다려주세요
-              </Text>
-            </View>
-          ) : (
-            <>
-              {/* 저장된 레포트 섹션 */}
-              {savedReports.length > 0 && (
-                <View style={styles.recordsSection}>
-                  <Text style={styles.recordsSectionTitle}>저장된 레포트</Text>
-                  {savedReports.map((savedReport) => (
-                    <TouchableOpacity
-                      key={savedReport.id}
-                      style={styles.recordCard}
-                      onPress={() => setSelectedRecord({ type: 'report', data: savedReport })}
-                    >
-                      <View style={styles.recordCardHeader}>
-                        <Text style={styles.recordCardTitle}>{savedReport.title}</Text>
-                        <Text style={styles.recordCardDate}>
-                          {new Date(savedReport.saved_at).toLocaleDateString('ko-KR', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                          })}
-                        </Text>
-                      </View>
-                      <Text style={styles.recordCardPeriod}>
-                        {new Date(savedReport.period_start).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} ~{' '}
-                        {new Date(savedReport.period_end).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
-                      </Text>
-                      <Text style={styles.recordCardPreview} numberOfLines={2}>
-                        {savedReport.content}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-
-              {/* 저장된 통계 섹션 */}
-              {savedStats.length > 0 && (
-                <View style={styles.recordsSection}>
-                  <Text style={styles.recordsSectionTitle}>저장된 통계</Text>
-                  {savedStats.map((savedStat) => (
-                    <TouchableOpacity
-                      key={savedStat.id}
-                      style={styles.recordCard}
-                      onPress={() => setSelectedRecord({ type: 'stats', data: savedStat })}
-                    >
-                      <View style={styles.recordCardHeader}>
-                        <Text style={styles.recordCardTitle}>
-                          {new Date(savedStat.period_start).toLocaleDateString('ko-KR', {
-                            year: 'numeric',
-                            month: 'long',
-                          })} 통계
-                        </Text>
-                        <Text style={styles.recordCardDate}>
-                          {new Date(savedStat.saved_at).toLocaleDateString('ko-KR', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                          })}
-                        </Text>
-                      </View>
-                      <Text style={styles.recordCardPeriod}>
-                        {new Date(savedStat.period_start).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} ~{' '}
-                        {new Date(savedStat.period_end).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
-                      </Text>
-                      <Text style={styles.recordCardPreview}>
-                        총 {savedStat.total_count}개의 기록 • 감정 {savedStat.emotion_stats.length}종 • 주제 {savedStat.topic_stats.length}종
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </>
-          )
-        ) : loading ? (
+        {loading ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIconContainer}>
               <ActivityIndicator size="large" color="#3B82F6" />
@@ -595,15 +412,6 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
                       <Text style={styles.testButtonText}>생성</Text>
                     )}
                   </TouchableOpacity>
-                  {/* 저장하기 버튼 */}
-                  {report?.content && (
-                    <TouchableOpacity
-                      style={[styles.testButton, { backgroundColor: '#10B981', marginLeft: 8 }]}
-                      onPress={handleSaveReport}
-                    >
-                      <Text style={styles.testButtonText}>저장하기</Text>
-                    </TouchableOpacity>
-                  )}
                 </View>
               </View>
 
@@ -757,171 +565,6 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
                   <>
                     <Text style={styles.evidenceDateLabel}>{evidenceJournal.date}</Text>
                     <Text style={styles.evidenceContent}>{evidenceJournal.content}</Text>
-                  </>
-                )}
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-
-        {/* 기록 상세 보기 모달 */}
-        <Modal
-          visible={selectedRecord !== null}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setSelectedRecord(null)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  {selectedRecord?.type === 'report' ? '저장된 레포트' : '저장된 통계'}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => setSelectedRecord(null)}
-                  style={styles.modalCloseButton}
-                >
-                  <Ionicons name="close" size={24} color="#64748b" />
-                </TouchableOpacity>
-              </View>
-              <ScrollView style={styles.modalScrollView}>
-                {selectedRecord?.type === 'report' && (
-                  <>
-                    {(() => {
-                      const savedReport = selectedRecord.data as SavedReport;
-                      return (
-                        <>
-                          <View style={styles.recordDetailHeader}>
-                            <Text style={styles.recordDetailTitle}>{savedReport.title}</Text>
-                            <Text style={styles.recordDetailDate}>
-                              저장일: {new Date(savedReport.saved_at).toLocaleDateString('ko-KR', {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric',
-                              })}
-                            </Text>
-                            <Text style={styles.recordDetailPeriod}>
-                              {new Date(savedReport.period_start).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} ~{' '}
-                              {new Date(savedReport.period_end).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
-                            </Text>
-                          </View>
-                          <View style={styles.recordDetailContent}>
-                            {(() => {
-                              const lines = savedReport.content.split('\n\n');
-                              const summary = lines[0] || '';
-                              const body = lines.slice(1).join('\n\n');
-                              return (
-                                <>
-                                  {summary && (
-                                    <Text style={styles.reportSummary}>"{summary}"</Text>
-                                  )}
-                                  {body && (
-                                    <Text style={styles.reportContentText}>{body}</Text>
-                                  )}
-                                </>
-                              );
-                            })()}
-                          </View>
-                        </>
-                      );
-                    })()}
-                  </>
-                )}
-                {selectedRecord?.type === 'stats' && (
-                  <>
-                    {(() => {
-                      const savedStat = selectedRecord.data as SavedStats;
-                      return (
-                        <>
-                          <View style={styles.recordDetailHeader}>
-                            <Text style={styles.recordDetailTitle}>
-                              {new Date(savedStat.period_start).toLocaleDateString('ko-KR', {
-                                year: 'numeric',
-                                month: 'long',
-                              })} 통계
-                            </Text>
-                            <Text style={styles.recordDetailDate}>
-                              저장일: {new Date(savedStat.saved_at).toLocaleDateString('ko-KR', {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric',
-                              })}
-                            </Text>
-                            <Text style={styles.recordDetailPeriod}>
-                              {new Date(savedStat.period_start).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} ~{' '}
-                              {new Date(savedStat.period_end).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
-                            </Text>
-                          </View>
-                          <View style={styles.recordDetailContent}>
-                            {/* 감정별 통계 */}
-                            {savedStat.emotion_stats.length > 0 && (
-                              <View style={styles.statCard}>
-                                <Text style={styles.statTitle}>감정별 통계</Text>
-                                <View style={styles.statContent}>
-                                  {savedStat.emotion_stats.map((item) => {
-                                    const percentage = savedStat.total_count > 0 ? (item.count / savedStat.total_count) * 100 : 0;
-                                    const emotionInfo = EMOTIONS.find(e => e.label === item.emotion);
-                                    return (
-                                      <View key={item.emotion} style={styles.emotionStatItem}>
-                                        <View style={styles.emotionStatInfo}>
-                                          <Ionicons name={emotionInfo?.icon || 'ellipse'} size={20} color={emotionInfo?.color || '#94a3b8'} />
-                                          <Text style={styles.emotionStatLabel}>{item.emotion}</Text>
-                                        </View>
-                                        <View style={styles.barContainer}>
-                                          <View 
-                                            style={[
-                                              styles.bar, 
-                                              { 
-                                                width: `${percentage}%`, 
-                                                backgroundColor: emotionInfo?.color || '#94a3b8'
-                                              }
-                                            ]} 
-                                          />
-                                        </View>
-                                        <Text style={styles.emotionStatCount}>{item.count}</Text>
-                                      </View>
-                                    );
-                                  })}
-                                </View>
-                              </View>
-                            )}
-
-                            {/* 주제별 통계 */}
-                            {savedStat.topic_stats.length > 0 && (
-                              <View style={styles.statCard}>
-                                <Text style={styles.statTitle}>주제별 통계</Text>
-                                <View style={styles.statContent}>
-                                  {savedStat.topic_stats.map((item) => {
-                                    const percentage = savedStat.total_count > 0 ? (item.count / savedStat.total_count) * 100 : 0;
-                                    const topicInfo = TOPICS.find(t => t.label === item.topic);
-                                    return (
-                                      <View key={item.topic} style={styles.emotionStatItem}>
-                                        <View style={styles.emotionStatInfo}>
-                                          <Ionicons name={topicInfo?.icon || 'ellipse'} size={20} color={topicInfo?.color || '#94a3b8'} />
-                                          <Text style={styles.emotionStatLabel}>{item.topic}</Text>
-                                        </View>
-                                        <View style={styles.barContainer}>
-                                          <View 
-                                            style={[
-                                              styles.bar, 
-                                              { 
-                                                width: `${percentage}%`, 
-                                                backgroundColor: topicInfo?.color || '#94a3b8'
-                                              }
-                                            ]} 
-                                          />
-                                        </View>
-                                        <Text style={styles.emotionStatCount}>{item.count}</Text>
-                                      </View>
-                                    );
-                                  })}
-                                </View>
-                              </View>
-                            )}
-                          </View>
-                        </>
-                      );
-                    })()}
                   </>
                 )}
               </ScrollView>
@@ -1436,105 +1079,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     color: '#4f46e5',
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
-    gap: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: '#f1f5f9',
-    alignItems: 'center',
-  },
-  tabActive: {
-    backgroundColor: '#8B5CF6',
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748b',
-  },
-  tabTextActive: {
-    color: '#fff',
-  },
-  recordsSection: {
-    marginBottom: 24,
-  },
-  recordsSectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1e293b',
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-  recordCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-  },
-  recordCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  recordCardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1e293b',
-    flex: 1,
-  },
-  recordCardDate: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginLeft: 8,
-  },
-  recordCardPeriod: {
-    fontSize: 13,
-    color: '#64748b',
-    marginBottom: 8,
-  },
-  recordCardPreview: {
-    fontSize: 14,
-    color: '#475569',
-    lineHeight: 20,
-  },
-  recordDetailHeader: {
-    marginBottom: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  recordDetailTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 8,
-  },
-  recordDetailDate: {
-    fontSize: 14,
-    color: '#94a3b8',
-    marginBottom: 4,
-  },
-  recordDetailPeriod: {
-    fontSize: 14,
-    color: '#64748b',
-  },
-  recordDetailContent: {
-    marginTop: 8,
   },
 });
