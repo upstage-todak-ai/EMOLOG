@@ -9,6 +9,7 @@ import { JournalEntry, Emotion } from '../types/journal';
 type HomeScreenProps = {
   onNavigateToSettings: () => void;
   onNavigateToStats: () => void;
+  onNavigateToDeveloper: () => void;
   onNavigateToJournalWrite: (emotion: Emotion, selectedDate?: string, existingJournal?: JournalEntry | null) => void;
 };
 
@@ -17,7 +18,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, onNavigateToJournalWrite }: HomeScreenProps) {
+export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, onNavigateToDeveloper, onNavigateToJournalWrite }: HomeScreenProps) {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedJournal, setSelectedJournal] = useState<JournalEntry | null>(null);
@@ -355,15 +356,12 @@ export default function HomeScreen({ onNavigateToSettings, onNavigateToStats, on
               >
                 <Ionicons name="settings" size={24} color="#64748b" />
               </TouchableOpacity>
-              {/* <TouchableOpacity
-                onPress={() => {
-                  console.log('개발자 버튼 클릭');
-                  // 개발자 기능 추가 가능
-                }}
+              <TouchableOpacity
+                onPress={onNavigateToDeveloper}
                 style={styles.headerButton}
               >
                 <Ionicons name="code" size={24} color="#64748b" />
-              </TouchableOpacity> */}
+              </TouchableOpacity>
             </View>
           )}
         </View>
