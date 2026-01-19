@@ -5,7 +5,6 @@ import { getStats, getReport, generateWeeklyReport, getLatestReport, getPrevious
 import { getUserId } from '../services/userService';
 import { getAllJournals } from '../services/journalService';
 import { emotionLabelToBackend } from '../utils/journalConverter';
-import { JournalEntry } from '../types/journal';
 import { useState, useEffect } from 'react';
 
 type Emotion = {
@@ -16,9 +15,6 @@ type Emotion = {
 
 type StatsScreenProps = {
   onBack: () => void;
-  onNavigateToJournalWrite?: (emotion: Emotion, date: string, journal?: JournalEntry | null) => void;
-  shouldOpenTransitionModal?: boolean;
-  onTransitionModalOpened?: () => void;
 };
 
 // 감정 설정
@@ -46,7 +42,7 @@ const TOPICS: Topic[] = [
   { label: '일상', icon: 'calendar', color: '#64748b' },
 ];
 
-export default function StatsScreen({ onBack, onNavigateToJournalWrite, shouldOpenTransitionModal, onTransitionModalOpened }: StatsScreenProps) {
+export default function StatsScreen({ onBack }: StatsScreenProps) {
   const [stats, setStats] = useState<{
     emotion_stats: Array<{ emotion: string; count: number }>;
     topic_stats: Array<{ topic: string; count: number }>;
@@ -59,33 +55,10 @@ export default function StatsScreen({ onBack, onNavigateToJournalWrite, shouldOp
   const [showInsightsModal, setShowInsightsModal] = useState(false);
   const [selectedEvidenceDate, setSelectedEvidenceDate] = useState<string | null>(null);
   const [evidenceJournal, setEvidenceJournal] = useState<{ date: string; content: string } | null>(null);
-  const [journals, setJournals] = useState<JournalEntry[]>([]);
-  const [selectedTransitionInsights, setSelectedTransitionInsights] = useState<Insight[]>([]);
-  const [showTransitionInsightsModal, setShowTransitionInsightsModal] = useState(false);
-  const [selectedTransition, setSelectedTransition] = useState<{ from: Emotion; to: Emotion } | null>(null);
 
   useEffect(() => {
     loadStats();
-    loadJournals();
   }, []);
-
-  useEffect(() => {
-    if (shouldOpenTransitionModal && selectedTransitionInsights.length > 0) {
-      setShowTransitionInsightsModal(true);
-      if (onTransitionModalOpened) {
-        onTransitionModalOpened();
-      }
-    }
-  }, [shouldOpenTransitionModal, selectedTransitionInsights.length, onTransitionModalOpened]);
-
-  const loadJournals = async () => {
-    try {
-      const allJournals = await getAllJournals();
-      setJournals(allJournals);
-    } catch (error) {
-      console.error('일기 로드 실패:', error);
-    }
-  };
 
   const loadStats = async () => {
     try {
@@ -243,166 +216,6 @@ export default function StatsScreen({ onBack, onNavigateToJournalWrite, shouldOp
   const topicData = stats?.topic_stats.filter(item => item.count > 0) || [];
   const emotionData = stats?.emotion_stats.filter(item => item.count > 0) || [];
 
-  // 인사이트에서 감정 변화 추출
-  const getEmotionTransition = (insight: Insight) => {
-    if (!insight.date_references || insight.date_references.length < 2) {
-      return null;
-    }
-
-    const sortedDates = [...insight.date_references].sort();
-    const emotionList: Array<{ date: string; emotion: Emotion | null }> = [];
-
-    sortedDates.forEach(date => {
-      const journal = journals.find((j) => j.date === date);
-      if (journal && journal.emotion) {
-        // JournalEntry의 Emotion을 로컬 Emotion 타입으로 변환
-        const localEmotion: Emotion = {
-          label: journal.emotion.label,
-          icon: journal.emotion.icon as keyof typeof Ionicons.glyphMap,
-          color: journal.emotion.color,
-        };
-        emotionList.push({ date, emotion: localEmotion });
-      } else {
-        emotionList.push({ date, emotion: null });
-      }
-    });
-
-    const validEmotions = emotionList.filter(item => item.emotion !== null);
-    
-    if (validEmotions.length < 2) {
-      return null;
-    }
-
-    return {
-      from: validEmotions[0].emotion!,
-      to: validEmotions[validEmotions.length - 1].emotion!,
-      dates: sortedDates,
-    };
-  };
-
-  // 감정 강도 매핑
-  const EMOTION_INTENSITY: Record<string, number> = {
-    '기쁨': 3,
-    '평온': 2,
-    '지침': 2,
-    '불안': 3,
-    '슬픔': 4,
-    '화남': 5,
-  };
-
-  // 인사이트에서 주제 추출
-  const getTopicFromInsight = (insight: Insight): string | null => {
-    if (!insight.date_references || insight.date_references.length === 0) {
-      return null;
-    }
-
-    const firstDate = insight.date_references[0];
-    const journal = journals.find((j) => j.date === firstDate);
-    
-    if (journal && journal.topic && journal.topic.trim() && journal.topic.toLowerCase() !== 'none') {
-      return journal.topic;
-    }
-
-    for (const date of insight.date_references) {
-      const journal = journals.find((j) => j.date === date);
-      if (journal && journal.topic && journal.topic.trim() && journal.topic.toLowerCase() !== 'none') {
-        return journal.topic;
-      }
-    }
-
-    return null;
-  };
-
-  // 상위 3개 감정 변화 가져오기
-  const getTopEmotionTransitions = () => {
-    if (!report?.insights) return [];
-
-    const transitionGroups: Record<string, { 
-      from: Emotion; 
-      to: Emotion; 
-      intensityDiff: number;
-      durationBonus: number;
-      totalScore: number;
-      topics: Set<string>;
-      summaries: string[];
-      insights: Insight[];
-    }> = {};
-
-    report.insights.forEach((insight) => {
-      const emotionTransition = getEmotionTransition(insight);
-      if (!emotionTransition) return;
-
-      // from과 to가 같은 변화는 제외
-      if (emotionTransition.from.label === emotionTransition.to.label) {
-        return;
-      }
-
-      const transitionKey = `${emotionTransition.from.label}->${emotionTransition.to.label}`;
-      
-      if (!transitionGroups[transitionKey]) {
-        const fromIntensity = EMOTION_INTENSITY[emotionTransition.from.label] || 0;
-        const toIntensity = EMOTION_INTENSITY[emotionTransition.to.label] || 0;
-        const intensityDiff = Math.abs(fromIntensity - toIntensity);
-
-        // 기간 계산 (가장 이른 날짜와 가장 늦은 날짜)
-        const minDate = new Date(Math.min(...emotionTransition.dates.map(date => new Date(date).getTime())));
-        const maxDate = new Date(Math.max(...emotionTransition.dates.map(date => new Date(date).getTime())));
-        const diffTime = Math.abs(maxDate.getTime() - minDate.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        const durationBonus = diffDays >= 7 ? 1 : 0;
-
-        transitionGroups[transitionKey] = {
-          from: emotionTransition.from,
-          to: emotionTransition.to,
-          intensityDiff: intensityDiff,
-          durationBonus: durationBonus,
-          totalScore: intensityDiff + durationBonus,
-          topics: new Set<string>(),
-          summaries: [],
-          insights: [],
-        };
-      }
-
-      // 인사이트 추가
-      transitionGroups[transitionKey].insights.push(insight);
-
-      // 주제 추가
-      const topic = getTopicFromInsight(insight);
-      if (topic) {
-        transitionGroups[transitionKey].topics.add(topic);
-      }
-
-      // 인사이트 summary 추가
-      if (insight.summary && insight.summary.trim()) {
-        transitionGroups[transitionKey].summaries.push(insight.summary);
-      } else if (insight.description && insight.description.trim()) {
-        // summary가 없으면 description의 첫 줄만 사용
-        const firstLine = insight.description.split('\n')[0] || insight.description;
-        if (firstLine.length > 50) {
-          transitionGroups[transitionKey].summaries.push(firstLine.substring(0, 50) + '...');
-        } else {
-          transitionGroups[transitionKey].summaries.push(firstLine);
-        }
-      }
-    });
-
-    // 점수 기준으로 상위 3개 필터링
-    return Object.values(transitionGroups)
-      .sort((a, b) => b.totalScore - a.totalScore)
-      .slice(0, 3)
-      .map(transition => {
-        const { topics, summaries, insights, ...rest } = transition;
-        return {
-          ...rest,
-          topics: Array.from(topics),
-          summary: summaries[0] || '', // 첫 번째 summary 사용
-          insights: insights, // 인사이트 배열 포함
-        };
-      });
-  };
-
-  const topEmotionTransitions = getTopEmotionTransitions();
-
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -428,82 +241,23 @@ export default function StatsScreen({ onBack, onNavigateToJournalWrite, shouldOp
         showsVerticalScrollIndicator={false}
       >
         {loading ? (
-            <View style={styles.emptyState}>
+          <View style={styles.emptyState}>
             <View style={styles.emptyIconContainer}>
               <ActivityIndicator size="large" color="#3B82F6" />
             </View>
           </View>
         ) : totalCount === 0 ? (
-            <View style={styles.emptyState}>
+          <View style={styles.emptyState}>
               <View style={styles.emptyIconContainer}>
               </View>
             <Text style={styles.emptyTitle}>아직 데이터가 없어요</Text>
-              <Text style={styles.emptySubtitle}>
+            <Text style={styles.emptySubtitle}>
               감정 메모를 작성하면{'\n'}
               통계와 레포트를 확인할 수 있습니다
-              </Text>
-            </View>
-          ) : (
-            <>
-            {/* 감정 변화 카드 (상위 3개) */}
-            {topEmotionTransitions.length > 0 && (
-              <View style={styles.emotionTransitionCard}>
-                <Text style={styles.emotionTransitionTitle}>주요 감정 변화</Text>
-                {topEmotionTransitions.map((transition, index) => {
-                  const fromEmotionInfo = EMOTIONS.find(e => e.label === transition.from.label);
-                  const toEmotionInfo = EMOTIONS.find(e => e.label === transition.to.label);
-                  
-                  return (
-                    <TouchableOpacity
-                      key={index} 
-                      style={styles.emotionTransitionCardItem}
-                      onPress={() => {
-                        setSelectedTransitionInsights(transition.insights);
-                        setSelectedTransition({ from: transition.from, to: transition.to });
-                        setShowTransitionInsightsModal(true);
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.emotionTransitionItem}>
-                        {fromEmotionInfo && (
-                          <View style={styles.emotionTransitionIcon}>
-                            <Ionicons 
-                              name={fromEmotionInfo.icon as any} 
-                              size={32} 
-                              color={fromEmotionInfo.color} 
-                            />
-                            <Text style={[styles.emotionTransitionLabel, { color: fromEmotionInfo.color }]}>
-                              {fromEmotionInfo.label}
-                        </Text>
-                      </View>
-                        )}
-                        <Ionicons name="arrow-forward" size={28} color="#64748b" style={styles.arrowIcon} />
-                        {toEmotionInfo && (
-                          <View style={styles.emotionTransitionIcon}>
-                            <Ionicons 
-                              name={toEmotionInfo.icon as any} 
-                              size={32} 
-                              color={toEmotionInfo.color} 
-                            />
-                            <Text style={[styles.emotionTransitionLabel, { color: toEmotionInfo.color }]}>
-                              {toEmotionInfo.label}
-                      </Text>
-                </View>
-              )}
-                      </View>
-                      
-                      {/* 인사이트 요약 */}
-                      {transition.summary && (
-                        <Text style={styles.transitionSummary} numberOfLines={2}>
-                          {transition.summary}
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-                </View>
-              )}
-
+            </Text>
+          </View>
+        ) : (
+          <>
             {/* 주제별 통계 */}
             {topicData.length > 0 && (
               <View style={styles.statCard}>
@@ -601,7 +355,7 @@ export default function StatsScreen({ onBack, onNavigateToJournalWrite, shouldOp
                               period_start: previousReport.period_start,
                               period_end: previousReport.period_end,
                             });
-                            setIsLatestReport(false);
+                            setIsLatestReport(false); // 이전 리포트를 보면 더 이상 최신이 아님
                           } else {
                             Alert.alert('알림', '이전 리포트가 없습니다.');
                           }
@@ -711,142 +465,6 @@ export default function StatsScreen({ onBack, onNavigateToJournalWrite, shouldOp
         )}
       </ScrollView>
 
-      {/* 감정 변화 근거보기 모달 */}
-      <Modal
-        visible={showTransitionInsightsModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowTransitionInsightsModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>감정 변화 근거</Text>
-              <TouchableOpacity
-                onPress={() => setShowTransitionInsightsModal(false)}
-                style={styles.modalCloseButton}
-              >
-                <Ionicons name="close" size={24} color="#64748b" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalScrollView}>
-              {selectedTransition && selectedTransitionInsights && selectedTransitionInsights.length > 0 ? (
-                <View style={styles.transitionEvidenceContainer}>
-                  {/* 감정 변화 표시 */}
-                  <View style={styles.transitionEvidenceHeader}>
-                    <View style={styles.transitionEvidenceEmotions}>
-                      {(() => {
-                        const fromEmotionInfo = EMOTIONS.find(e => e.label === selectedTransition.from.label);
-                        const toEmotionInfo = EMOTIONS.find(e => e.label === selectedTransition.to.label);
-                        return (
-                          <>
-                            {fromEmotionInfo && (
-                              <View style={styles.transitionEvidenceEmotionItem}>
-                                <Ionicons 
-                                  name={fromEmotionInfo.icon as any} 
-                                  size={32} 
-                                  color={fromEmotionInfo.color} 
-                                />
-                                <Text style={[styles.transitionEvidenceEmotionLabel, { color: fromEmotionInfo.color }]}>
-                                  {fromEmotionInfo.label}
-                                </Text>
-                              </View>
-                            )}
-                            <Ionicons name="arrow-forward" size={24} color="#64748b" style={styles.transitionEvidenceArrow} />
-                            {toEmotionInfo && (
-                              <View style={styles.transitionEvidenceEmotionItem}>
-                                <Ionicons 
-                                  name={toEmotionInfo.icon as any} 
-                                  size={32} 
-                                  color={toEmotionInfo.color} 
-                                />
-                                <Text style={[styles.transitionEvidenceEmotionLabel, { color: toEmotionInfo.color }]}>
-                                  {toEmotionInfo.label}
-                                </Text>
-                              </View>
-                            )}
-                          </>
-                        );
-                      })()}
-                    </View>
-                  </View>
-
-                  {/* 인사이트 요약 */}
-                  {selectedTransitionInsights[0]?.summary && (
-                    <Text style={styles.transitionEvidenceSummary}>
-                      {selectedTransitionInsights[0].summary}
-                    </Text>
-                  )}
-
-                  {/* 메모 바탕 설명 */}
-                  <Text style={styles.transitionEvidenceMemoLabel}>
-                    아래 메모를 바탕으로 생각했어요.
-                  </Text>
-
-                  {/* 참조 날짜들 */}
-                  {(() => {
-                    const allDates = new Set<string>();
-                    selectedTransitionInsights.forEach(insight => {
-                      if (insight.date_references) {
-                        insight.date_references.forEach(date => allDates.add(date));
-                      }
-                    });
-                    const sortedDates = Array.from(allDates).sort();
-                    
-                    return (
-                      <View style={styles.transitionEvidenceDates}>
-                        {sortedDates.map((date, index) => {
-                          const journal = journals.find(j => j.date === date);
-                          const journalContent = journal?.content || '메모가 없습니다.';
-                          const journalEmotion = journal?.emotion;
-                          
-                          // JournalEntry의 Emotion을 StatsScreen의 Emotion 타입으로 변환
-                          let emotionForNavigation: Emotion | null = null;
-                          if (journalEmotion) {
-                            const emotionInfo = EMOTIONS.find(e => e.label === journalEmotion.label);
-                            if (emotionInfo) {
-                              emotionForNavigation = emotionInfo;
-                            }
-                          }
-                          
-                          return (
-                            <TouchableOpacity
-                              key={date}
-                              style={styles.transitionEvidenceDateItem}
-                              onPress={() => {
-                                // 모달을 닫지 않고 작성 화면으로 이동
-                                if (onNavigateToJournalWrite && emotionForNavigation) {
-                                  onNavigateToJournalWrite(emotionForNavigation, date, journal || null);
-                                } else if (onNavigateToJournalWrite) {
-                                  // 감정이 없으면 기본 감정으로
-                                  const defaultEmotion = EMOTIONS[0];
-                                  onNavigateToJournalWrite(defaultEmotion, date, journal || null);
-                                }
-                              }}
-                            >
-                              <View style={styles.transitionEvidenceDateHeader}>
-                                <Text style={styles.transitionEvidenceDateLabel}>
-                                  {date}
-                                </Text>
-                              </View>
-                              <Text style={styles.transitionEvidenceDateContent} numberOfLines={3}>
-                                {journalContent}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    );
-                  })()}
-                </View>
-              ) : (
-                <Text style={styles.noInsightsText}>근거 데이터가 없습니다.</Text>
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
       {/* 근거보기 모달 */}
       <Modal
         visible={showInsightsModal}
@@ -953,7 +571,7 @@ export default function StatsScreen({ onBack, onNavigateToJournalWrite, shouldOp
             </View>
           </View>
         </Modal>
-              </View>
+      </View>
     );
   }
 
@@ -1461,116 +1079,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     color: '#4f46e5',
-  },
-  emotionTransitionCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-  },
-  emotionTransitionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1e293b',
-    marginBottom: 16,
-  },
-  emotionTransitionCardItem: {
-    backgroundColor: '#f8fafc',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-  },
-  emotionTransitionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-    gap: 8,
-  },
-  emotionTransitionIcon: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  emotionTransitionLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  arrowIcon: {
-    marginHorizontal: 12,
-  },
-  transitionSummary: {
-    fontSize: 14,
-    color: '#64748b',
-    marginTop: 12,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  transitionEvidenceContainer: {
-    padding: 20,
-  },
-  transitionEvidenceHeader: {
-    marginBottom: 24,
-  },
-  transitionEvidenceEmotions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-  },
-  transitionEvidenceEmotionItem: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  transitionEvidenceEmotionLabel: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  transitionEvidenceArrow: {
-    marginHorizontal: 8,
-  },
-  transitionEvidenceSummary: {
-    fontSize: 16,
-    color: '#1e293b',
-    lineHeight: 24,
-    marginBottom: 20,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  transitionEvidenceMemoLabel: {
-    fontSize: 14,
-    color: '#64748b',
-    marginBottom: 12,
-    fontWeight: '500',
-  },
-  transitionEvidenceDates: {
-    gap: 12,
-  },
-  transitionEvidenceDateItem: {
-    backgroundColor: '#f8fafc',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 12,
-  },
-  transitionEvidenceDateHeader: {
-    marginBottom: 8,
-  },
-  transitionEvidenceDateLabel: {
-    fontSize: 15,
-    color: '#475569',
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  transitionEvidenceDateContent: {
-    fontSize: 14,
-    color: '#64748b',
-    lineHeight: 20,
   },
 });
