@@ -6,6 +6,7 @@ import JournalWriteScreen from './screens/JournalWriteScreen';
 import StatsScreen from './screens/StatsScreen';
 import LoginScreen from './screens/LoginScreen';
 import SettingsScreen from './screens/SettingsScreen';
+import DeveloperScreen from './screens/DeveloperScreen';
 import { Emotion, JournalEntry } from './types/journal';
 import { getUserId } from './services/userService';
 
@@ -28,7 +29,7 @@ try {
 }
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<'login' | 'home' | 'journalWrite' | 'stats' | 'settings'>('login');
+  const [currentScreen, setCurrentScreen] = useState<'login' | 'home' | 'journalWrite' | 'stats' | 'settings' | 'developer'>('login');
   const [selectedEmotion, setSelectedEmotion] = useState<Emotion | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | undefined>(undefined);
   const [existingJournal, setExistingJournal] = useState<JournalEntry | null>(null);
@@ -269,12 +270,22 @@ export default function App() {
     );
   }
 
+  if (currentScreen === 'developer') {
+    return (
+      <>
+        <DeveloperScreen onBack={() => setCurrentScreen('home')} />
+        <NotificationModal />
+      </>
+    );
+  }
+
   return (
     <>
       <HomeScreen
         key={refreshKey}
         onNavigateToStats={() => setCurrentScreen('stats')}
         onNavigateToSettings={() => setCurrentScreen('settings')}
+        onNavigateToDeveloper={() => setCurrentScreen('developer')}
         onNavigateToJournalWrite={(emotion: Emotion, date?: string, journal?: JournalEntry | null) => {
           setSelectedEmotion(emotion);
           setSelectedDate(date);
