@@ -72,6 +72,7 @@ def generate_weekly_report(
         return {
             "report": "데이터를 분석할 충분한 인사이트를 찾지 못했습니다.",
             "summary": "인사이트 부족",
+            "pattern_summary": "",
             "period_start": period_start,
             "period_end": period_end,
             "insights": [],
@@ -112,7 +113,8 @@ def generate_weekly_report(
             "period_end": period_end,
             "insights": original_insights,  # 리포트 생성에는 원본 인사이트 사용 (날짜 정보 포함)
             "report": None,
-            "summary": None
+            "summary": None,
+            "pattern_summary": None
         }
         
         # 문장 작성만 실행
@@ -125,6 +127,7 @@ def generate_weekly_report(
         result = write_graph.invoke(write_state)
         report = result.get("report", "")
         summary = result.get("summary", "")
+        pattern_summary = result.get("pattern_summary", "")
         
         if not report:
             logger.warning(f"[generate_weekly_report] 리포트 문장 작성 실패 (시도 {attempt + 1})")
@@ -137,6 +140,7 @@ def generate_weekly_report(
         candidates.append({
             "report": report,
             "summary": summary,
+            "pattern_summary": pattern_summary,
             "eval": eval_result,
             "attempt": attempt + 1
         })
@@ -149,6 +153,7 @@ def generate_weekly_report(
             return {
                 "report": report,
                 "summary": summary,
+                "pattern_summary": pattern_summary,
                 "period_start": period_start,
                 "period_end": period_end,
                 "insights": final_insights,  # 요약된 인사이트 반환 (DB 저장용)
@@ -167,6 +172,7 @@ def generate_weekly_report(
         return {
             "report": best_candidate["report"],
             "summary": best_candidate["summary"],
+            "pattern_summary": best_candidate.get("pattern_summary", ""),
             "period_start": period_start,
             "period_end": period_end,
             "insights": final_insights,  # 요약된 인사이트 반환
@@ -179,6 +185,7 @@ def generate_weekly_report(
     return {
         "report": "리포트 작성에 실패했습니다.",
         "summary": "리포트 작성에 실패했습니다",
+        "pattern_summary": "",
         "period_start": period_start,
         "period_end": period_end,
         "insights": final_insights if 'final_insights' in locals() else original_insights,  # 요약된 인사이트 반환

@@ -255,6 +255,7 @@ export interface Insight {
 export interface WeeklyReportResponse {
   report: string;
   summary: string;
+  pattern_summary?: string; // 패턴 흐름 요약 (티저 문장)
   period_start: string;
   period_end: string;
   insights: Insight[];

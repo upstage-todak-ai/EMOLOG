@@ -187,7 +187,8 @@ class InsightResponse(BaseModel):
 class ReportResponse(BaseModel):
     """리포트 생성 응답 모델"""
     report: str  # 생성된 리포트 내용
-    summary: str  # 리포트 요약
+    summary: str  # 리포트 요약 (1줄 요약/제목)
+    pattern_summary: Optional[str] = ""  # 패턴 흐름 요약 (티저 문장)
     period_start: str  # 리포트 기간 시작일
     period_end: str  # 리포트 기간 종료일
     insights: Optional[List[dict]] = []  # 추출된 인사이트 리스트

@@ -11,7 +11,8 @@ class ReportGenerationState(TypedDict):
     period_end: str  # 리포트 기간 종료일 "YYYY-MM-DD"
     insights: Optional[List[dict]]  # 추출된 인사이트 리스트 (날짜 참조 포함)
     report: Optional[str]  # 생성된 리포트 내용 (인사이트 기반)
-    summary: Optional[str]  # 리포트 요약
+    summary: Optional[str]  # 리포트 요약 (1줄 요약/제목)
+    pattern_summary: Optional[str]  # 패턴 흐름 요약 (티저 문장)
 
 
 class ReportEvaluationState(TypedDict):

@@ -26,14 +26,15 @@ class ReportRepository:
         except Exception as e:
             raise ValueError(f"Firestore 연결 실패: {str(e)}. Firebase 설정을 확인해주세요.")
     
-    def create(self, user_id: str, report: str, summary: str, period_start: str, period_end: str, insights: List[dict], eval_score: float, attempt: int) -> dict:
+    def create(self, user_id: str, report: str, summary: str, pattern_summary: str, period_start: str, period_end: str, insights: List[dict], eval_score: float, attempt: int) -> dict:
         """
         리포트 생성
         
         Args:
             user_id: 사용자 ID
             report: 리포트 내용
-            summary: 리포트 요약
+            summary: 리포트 요약 (1줄 요약/제목)
+            pattern_summary: 패턴 흐름 요약 (티저 문장)
             period_start: 리포트 기간 시작일
             period_end: 리포트 기간 종료일
             insights: 인사이트 리스트
@@ -47,6 +48,7 @@ class ReportRepository:
             "user_id": user_id,
             "report": report,
             "summary": summary,
+            "pattern_summary": pattern_summary,
             "period_start": period_start,
             "period_end": period_end,
             "insights": insights,

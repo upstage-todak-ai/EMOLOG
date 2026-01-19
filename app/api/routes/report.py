@@ -54,6 +54,7 @@ def get_latest_report(user_id: str):
         return ReportResponse(
             report=latest_report.get("report", ""),
             summary=latest_report.get("summary", ""),
+            pattern_summary=latest_report.get("pattern_summary", ""),
             period_start=latest_report.get("period_start", ""),
             period_end=latest_report.get("period_end", ""),
             insights=latest_report.get("insights", []),
@@ -130,6 +131,7 @@ def get_previous_report(user_id: str, created_at: str):
         return ReportResponse(
             report=previous_report.get("report", ""),
             summary=previous_report.get("summary", ""),
+            pattern_summary=previous_report.get("pattern_summary", ""),
             period_start=previous_report.get("period_start", ""),
             period_end=previous_report.get("period_end", ""),
             insights=previous_report.get("insights", []),
@@ -214,6 +216,7 @@ def create_weekly_report(request: ReportRequest):
                 user_id=request.user_id,
                 report=result["report"],
                 summary=result["summary"],
+                pattern_summary=result.get("pattern_summary", ""),
                 period_start=result["period_start"],
                 period_end=result["period_end"],
                 insights=insights_to_save,
@@ -249,6 +252,7 @@ def create_weekly_report(request: ReportRequest):
         return ReportResponse(
             report=result["report"],
             summary=result["summary"],
+            pattern_summary=result.get("pattern_summary", ""),
             period_start=result["period_start"],
             period_end=result["period_end"],
             insights=result.get("insights", []),

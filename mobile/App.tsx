@@ -7,6 +7,7 @@ import StatsScreen from './screens/StatsScreen';
 import LoginScreen from './screens/LoginScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import DeveloperScreen from './screens/DeveloperScreen';
+import ReportScreen from './screens/ReportScreen';
 import { Emotion, JournalEntry } from './types/journal';
 import { getUserId } from './services/userService';
 
@@ -29,7 +30,7 @@ try {
 }
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<'login' | 'home' | 'journalWrite' | 'stats' | 'settings' | 'developer'>('login');
+  const [currentScreen, setCurrentScreen] = useState<'login' | 'home' | 'journalWrite' | 'stats' | 'settings' | 'developer' | 'report'>('login');
   const [selectedEmotion, setSelectedEmotion] = useState<Emotion | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | undefined>(undefined);
   const [existingJournal, setExistingJournal] = useState<JournalEntry | null>(null);
@@ -233,6 +234,7 @@ export default function App() {
           }}
           shouldOpenTransitionModal={shouldOpenTransitionModal}
           onTransitionModalOpened={() => setShouldOpenTransitionModal(false)}
+          onNavigateToReport={() => setCurrentScreen('report')}
         />
         <NotificationModal />
       </>
@@ -291,6 +293,15 @@ export default function App() {
     return (
       <>
         <DeveloperScreen onBack={() => setCurrentScreen('home')} />
+        <NotificationModal />
+      </>
+    );
+  }
+
+  if (currentScreen === 'report') {
+    return (
+      <>
+        <ReportScreen onBack={() => setCurrentScreen('stats')} />
         <NotificationModal />
       </>
     );

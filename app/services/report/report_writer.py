@@ -19,6 +19,7 @@ def write_report(state: ReportGenerationState) -> ReportGenerationState:
         logger.warning(f"[write_report] 인사이트가 없어 기본 리포트 생성")
         state["report"] = "데이터를 분석할 충분한 인사이트를 찾지 못했습니다."
         state["summary"] = "인사이트 부족"
+        state["pattern_summary"] = ""
         return state
     
     try:
@@ -93,7 +94,8 @@ def write_report(state: ReportGenerationState) -> ReportGenerationState:
 === 출력 JSON 형식 ===
 {{
   "report": "[첫 문장 요약]\n\n[본론 문단]\n\n[결론 문단]",
-  "summary": "첫 문장 요약 내용 (report의 첫 줄과 동일)"
+  "summary": "첫 문장 요약 내용 (report의 첫 줄과 동일)",
+  "pattern_summary": "모든 기간을 종합해봤더니 [감정 변화 패턴을 간결하게 요약한 티저 문장]. 예: '비관이 반복됐지만, 평온으로 돌아오려는 흐름이 보였어요.' 또는 '불안과 피로가 반복됐어요. 그래도 끝내 일상으로 돌아오려는 마음이 보였어요.' (2문장 이내, 감정 변화의 흐름을 간결하게)"
 }}
 
 **중요**: 
@@ -141,6 +143,7 @@ def write_report(state: ReportGenerationState) -> ReportGenerationState:
         result_json = json.loads(response_text)
         report_content = result_json.get("report", "")
         summary_content = result_json.get("summary", "")
+        pattern_summary_content = result_json.get("pattern_summary", "")
         
         # 줄바꿈 정규화 (\n\n로 문단 구분)
         report_content = report_content.replace('\r\n', '\n').replace('\r', '\n')
@@ -149,6 +152,7 @@ def write_report(state: ReportGenerationState) -> ReportGenerationState:
         
         state["report"] = report_content
         state["summary"] = summary_content
+        state["pattern_summary"] = pattern_summary_content
         
         logger.info(f"[write_report] 리포트 작성 완료 - summary={state['summary'][:50]}...")
         
@@ -156,9 +160,11 @@ def write_report(state: ReportGenerationState) -> ReportGenerationState:
         logger.error(f"[write_report] JSON 파싱 실패: {e}")
         state["report"] = "리포트 작성 실패"
         state["summary"] = "리포트 작성에 실패했습니다"
+        state["pattern_summary"] = ""
     except Exception as e:
         logger.error(f"[write_report] 리포트 작성 실패: {e}", exc_info=True)
         state["report"] = "리포트 작성 실패"
         state["summary"] = "리포트 작성에 실패했습니다"
+        state["pattern_summary"] = ""
     
     return state
