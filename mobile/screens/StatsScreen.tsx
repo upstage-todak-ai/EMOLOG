@@ -194,19 +194,29 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
       // 모든 일기 가져오기
       const allJournals = await getAllJournals();
       
-      // 최근 30일 데이터 사용
+      console.log(`[리포트 생성] 전체 일기 수: ${allJournals.length}개`);
+      
+      // 리포트 생성 시 최근 90일 데이터 사용 (더 넓은 범위)
       const now = new Date();
       const cutoffDate = new Date();
-      cutoffDate.setDate(now.getDate() - 30);
+      cutoffDate.setDate(now.getDate() - 90);
 
       const filteredJournals = allJournals.filter(journal => {
         const journalDate = new Date(journal.date + 'T00:00:00');
         return journalDate >= cutoffDate;
       });
 
+      console.log(`[리포트 생성] 필터링 후 일기 수: ${filteredJournals.length}개 (최근 90일)`);
+
       if (filteredJournals.length === 0) {
-        Alert.alert('알림', '리포트를 생성할 일기 데이터가 없습니다.');
-        return;
+        // 90일 이내 데이터가 없으면 전체 데이터 사용
+        console.log(`[리포트 생성] 최근 90일 데이터가 없어 전체 데이터 사용`);
+        if (allJournals.length === 0) {
+          Alert.alert('알림', '리포트를 생성할 일기 데이터가 없습니다.');
+          return;
+        }
+        // 전체 데이터 사용
+        filteredJournals.push(...allJournals);
       }
 
       // 리포트 생성 요청 형식으로 변환

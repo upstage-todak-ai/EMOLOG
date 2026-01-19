@@ -167,8 +167,8 @@ class DiaryEntryForReport(BaseModel):
     """리포트 생성을 위한 일기 항목 모델"""
     date: str  # 날짜 "YYYY-MM-DD"
     content: str  # 일기 내용
-    topic: str  # 주제
-    emotion: str  # 감정
+    topic: Optional[str] = None  # 주제 (없을 수 있음)
+    emotion: Optional[str] = None  # 감정 (없을 수 있음)
 
 class ReportRequest(BaseModel):
     """리포트 생성 요청 모델"""

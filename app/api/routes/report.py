@@ -190,16 +190,23 @@ def create_weekly_report(request: ReportRequest):
     """
     start_time = time.time()
     try:
-        # Pydantic 모델을 딕셔너리로 변환
-        diary_entries_dict = [
-            {
+        logger.info(f"[create_weekly_report] 리포트 생성 요청 - user_id={request.user_id}, diary_entries={len(request.diary_entries)}개")
+        
+        # Pydantic 모델을 딕셔너리로 변환 (None 값을 빈 문자열로 변환)
+        diary_entries_dict = []
+        for entry in request.diary_entries:
+            # topic과 emotion이 None이면 빈 문자열로 변환 (리포트 생성 서비스 호환성)
+            topic = entry.topic if entry.topic is not None else ""
+            emotion = entry.emotion if entry.emotion is not None else ""
+            
+            diary_entries_dict.append({
                 "date": entry.date,
                 "content": entry.content,
-                "topic": entry.topic,
-                "emotion": entry.emotion
-            }
-            for entry in request.diary_entries
-        ]
+                "topic": topic,
+                "emotion": emotion
+            })
+        
+        logger.info(f"[create_weekly_report] 변환 완료 - None 값 처리: topic={sum(1 for e in diary_entries_dict if not e['topic'])}, emotion={sum(1 for e in diary_entries_dict if not e['emotion'])}")
         
         # 서비스 함수 호출
         result = generate_weekly_report(
