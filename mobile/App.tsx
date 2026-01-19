@@ -35,6 +35,7 @@ export default function App() {
   const [existingJournal, setExistingJournal] = useState<JournalEntry | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [shouldOpenTransitionModal, setShouldOpenTransitionModal] = useState(false);
   const [notificationVisible, setNotificationVisible] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -221,7 +222,18 @@ export default function App() {
   if (currentScreen === 'stats') {
     return (
       <>
-        <StatsScreen onBack={() => setCurrentScreen('home')} />
+        <StatsScreen 
+          onBack={() => setCurrentScreen('home')}
+          onNavigateToJournalWrite={(emotion: Emotion, date: string, journal?: JournalEntry | null) => {
+            setSelectedEmotion(emotion);
+            setSelectedDate(date);
+            setExistingJournal(journal || null);
+            setShouldOpenTransitionModal(true);
+            setCurrentScreen('journalWrite');
+          }}
+          shouldOpenTransitionModal={shouldOpenTransitionModal}
+          onTransitionModalOpened={() => setShouldOpenTransitionModal(false)}
+        />
         <NotificationModal />
       </>
     );
@@ -251,11 +263,16 @@ export default function App() {
           selectedDate={selectedDate}
           existingJournal={existingJournal}
           onBack={() => {
-            setCurrentScreen('home');
-            setSelectedDate(undefined);
-            setSelectedEmotion(null);
-            setExistingJournal(null);
-            setRefreshKey(prev => prev + 1);
+            if (shouldOpenTransitionModal) {
+              setCurrentScreen('stats');
+              // 모달은 StatsScreen의 useEffect에서 자동으로 열림
+            } else {
+              setCurrentScreen('home');
+              setSelectedDate(undefined);
+              setSelectedEmotion(null);
+              setExistingJournal(null);
+              setRefreshKey(prev => prev + 1);
+            }
           }}
           onSave={() => {
             setCurrentScreen('home');
