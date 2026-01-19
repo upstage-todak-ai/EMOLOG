@@ -441,69 +441,55 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
           </View>
         ) : (
           <>
-            {/* 주제별 통계 */}
-            {topicData.length > 0 && (
+            {/* 통계 통합 박스 */}
+            {(topicData.length > 0 || emotionData.length > 0) && (
               <View style={styles.statCard}>
-                <Text style={styles.statTitle}>주제별 통계</Text>
-                <View style={styles.statContent}>
-                  {topicData.map((item) => {
-                    const percentage = totalCount > 0 ? (item.count / totalCount) * 100 : 0;
-                    const topicInfo = TOPICS.find(t => t.label === item.topic);
-                    return (
-                      <View key={item.topic} style={styles.emotionStatItem}>
-                        <View style={styles.emotionStatInfo}>
-                          <Ionicons name={topicInfo?.icon || 'ellipse'} size={20} color={topicInfo?.color || '#94a3b8'} />
-                          <Text style={styles.emotionStatLabel}>{item.topic}</Text>
-                        </View>
-                        <View style={styles.barContainer}>
-                          <View 
-                            style={[
-                              styles.bar, 
-                              { 
-                                width: `${percentage}%`, 
-                                backgroundColor: topicInfo?.color || '#94a3b8'
-                              }
-                            ]} 
-                          />
-                        </View>
-                        <Text style={styles.emotionStatCount}>{item.count}</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
-            )}
+                {/* 주제별 통계 */}
+                {topicData.length > 0 && (
+                  <>
+                    <Text style={styles.statTitle}>주제별 통계</Text>
+                    <View style={styles.statContent}>
+                      {topicData.map((item) => {
+                        const topicInfo = TOPICS.find(t => t.label === item.topic);
+                        return (
+                          <View key={item.topic} style={styles.emotionStatItem}>
+                            <View style={styles.emotionStatInfo}>
+                              <Ionicons name={topicInfo?.icon || 'ellipse'} size={18} color={topicInfo?.color || '#94a3b8'} />
+                              <Text style={styles.emotionStatLabel}>{item.topic}</Text>
+                            </View>
+                            <Text style={styles.emotionStatCount}>{item.count}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
 
-            {/* 감정별 통계 */}
-            {emotionData.length > 0 && (
-              <View style={styles.statCard}>
-                <Text style={styles.statTitle}>감정별 통계</Text>
-                <View style={styles.statContent}>
-                  {emotionData.map((item) => {
-                    const percentage = totalCount > 0 ? (item.count / totalCount) * 100 : 0;
-                    const emotionInfo = EMOTIONS.find(e => e.label === item.emotion);
-                    return (
-                      <View key={item.emotion} style={styles.emotionStatItem}>
-                        <View style={styles.emotionStatInfo}>
-                          <Ionicons name={emotionInfo?.icon || 'ellipse'} size={20} color={emotionInfo?.color || '#94a3b8'} />
-                          <Text style={styles.emotionStatLabel}>{item.emotion}</Text>
-                        </View>
-                        <View style={styles.barContainer}>
-                          <View 
-                            style={[
-                              styles.bar, 
-                              { 
-                                width: `${percentage}%`, 
-                                backgroundColor: emotionInfo?.color || '#94a3b8'
-                              }
-                            ]} 
-                          />
-                        </View>
-                        <Text style={styles.emotionStatCount}>{item.count}</Text>
-                      </View>
-                    );
-                  })}
-                </View>
+                {/* 구분선 */}
+                {topicData.length > 0 && emotionData.length > 0 && (
+                  <View style={styles.statDivider} />
+                )}
+
+                {/* 감정별 통계 */}
+                {emotionData.length > 0 && (
+                  <>
+                    <Text style={styles.statTitle}>감정별 통계</Text>
+                    <View style={styles.statContent}>
+                      {emotionData.map((item) => {
+                        const emotionInfo = EMOTIONS.find(e => e.label === item.emotion);
+                        return (
+                          <View key={item.emotion} style={styles.emotionStatItem}>
+                            <View style={styles.emotionStatInfo}>
+                              <Ionicons name={emotionInfo?.icon || 'ellipse'} size={18} color={emotionInfo?.color || '#94a3b8'} />
+                              <Text style={styles.emotionStatLabel}>{item.emotion}</Text>
+                            </View>
+                            <Text style={styles.emotionStatCount}>{item.count}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
               </View>
             )}
 
@@ -859,24 +845,12 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
                                 <Text style={styles.statTitle}>감정별 통계</Text>
                                 <View style={styles.statContent}>
                                   {savedStat.emotion_stats.map((item) => {
-                                    const percentage = savedStat.total_count > 0 ? (item.count / savedStat.total_count) * 100 : 0;
                                     const emotionInfo = EMOTIONS.find(e => e.label === item.emotion);
                                     return (
                                       <View key={item.emotion} style={styles.emotionStatItem}>
                                         <View style={styles.emotionStatInfo}>
-                                          <Ionicons name={emotionInfo?.icon || 'ellipse'} size={20} color={emotionInfo?.color || '#94a3b8'} />
+                                          <Ionicons name={emotionInfo?.icon || 'ellipse'} size={18} color={emotionInfo?.color || '#94a3b8'} />
                                           <Text style={styles.emotionStatLabel}>{item.emotion}</Text>
-                                        </View>
-                                        <View style={styles.barContainer}>
-                                          <View 
-                                            style={[
-                                              styles.bar, 
-                                              { 
-                                                width: `${percentage}%`, 
-                                                backgroundColor: emotionInfo?.color || '#94a3b8'
-                                              }
-                                            ]} 
-                                          />
                                         </View>
                                         <Text style={styles.emotionStatCount}>{item.count}</Text>
                                       </View>
@@ -892,24 +866,12 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
                                 <Text style={styles.statTitle}>주제별 통계</Text>
                                 <View style={styles.statContent}>
                                   {savedStat.topic_stats.map((item) => {
-                                    const percentage = savedStat.total_count > 0 ? (item.count / savedStat.total_count) * 100 : 0;
                                     const topicInfo = TOPICS.find(t => t.label === item.topic);
                                     return (
                                       <View key={item.topic} style={styles.emotionStatItem}>
                                         <View style={styles.emotionStatInfo}>
-                                          <Ionicons name={topicInfo?.icon || 'ellipse'} size={20} color={topicInfo?.color || '#94a3b8'} />
+                                          <Ionicons name={topicInfo?.icon || 'ellipse'} size={18} color={topicInfo?.color || '#94a3b8'} />
                                           <Text style={styles.emotionStatLabel}>{item.topic}</Text>
-                                        </View>
-                                        <View style={styles.barContainer}>
-                                          <View 
-                                            style={[
-                                              styles.bar, 
-                                              { 
-                                                width: `${percentage}%`, 
-                                                backgroundColor: topicInfo?.color || '#94a3b8'
-                                              }
-                                            ]} 
-                                          />
                                         </View>
                                         <Text style={styles.emotionStatCount}>{item.count}</Text>
                                       </View>
@@ -1013,8 +975,8 @@ const styles = StyleSheet.create({
   statCard: {
     backgroundColor: '#fff',
     borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
+    padding: 14,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -1023,13 +985,21 @@ const styles = StyleSheet.create({
     borderColor: '#f1f5f9',
   },
   statTitle: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: '600',
     color: '#1e293b',
-    marginBottom: 16,
+    marginBottom: 10,
+  },
+  statDivider: {
+    height: 1,
+    backgroundColor: '#e2e8f0',
+    marginVertical: 16,
+    marginHorizontal: -14,
   },
   statContent: {
-    gap: 12,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   statItem: {
     flexDirection: 'row',
@@ -1059,42 +1029,35 @@ const styles = StyleSheet.create({
   emotionStatItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   emotionStatInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: 80,
-    gap: 8,
+    gap: 6,
   },
   emotionStatLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
     color: '#334155',
   },
-  barContainer: {
-    flex: 1,
-    height: 8,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  bar: {
-    height: '100%',
-    borderRadius: 4,
-  },
   emotionStatCount: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#475569',
-    width: 32,
-    textAlign: 'right',
+    marginLeft: 2,
   },
   reportCard: {
     backgroundColor: '#fff',
     borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
+    padding: 14,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -1106,7 +1069,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   reportHeaderRight: {
     flexDirection: 'row',
@@ -1128,7 +1091,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   reportTitle: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: '600',
     color: '#1e293b',
   },

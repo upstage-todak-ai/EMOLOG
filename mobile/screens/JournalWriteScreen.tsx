@@ -69,12 +69,14 @@ export default function JournalWriteScreen({ emotion, selectedDate, existingJour
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
-      // 뒤로가기 시 마지막 내용 저장
-      if (content.trim()) {
-        autoSave(content);
+      // 뒤로가기 시 마지막 내용 저장 (현재 content 값 사용)
+      const currentContent = content;
+      if (currentContent.trim()) {
+        autoSave(currentContent);
       }
     };
-  }, [content, autoSave]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 컴포넌트 언마운트 시에만 실행
 
   const loadExistingJournal = async () => {
     try {
@@ -98,12 +100,12 @@ export default function JournalWriteScreen({ emotion, selectedDate, existingJour
       clearTimeout(saveTimeoutRef.current);
     }
     
-    // 1초 후 자동 저장
+    // 3초 후 자동 저장 (사용자가 입력을 멈춘 후)
     saveTimeoutRef.current = setTimeout(() => {
       if (text.trim()) {
         autoSave(text);
       }
-    }, 1000);
+    }, 3000); // 1초에서 3초로 변경
   };
 
   const handleBack = () => {
