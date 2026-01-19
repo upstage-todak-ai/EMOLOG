@@ -157,13 +157,17 @@ export async function deleteDiary(diaryId: string | number): Promise<void> {
  * 통계 조회
  */
 export async function getStats(userId: string, period: 'week' | 'month' = 'week'): Promise<BackendStatsResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/stats?user_id=${userId}&period=${period}`);
+  const url = `${API_BASE_URL}/api/stats?user_id=${userId}&period=${period}`;
+  console.log(`[getStats] API 호출 - URL: ${url}`);
+  
+  const response = await fetch(url);
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('통계 조회 API 에러:', response.status, errorText);
+    console.error(`[getStats] API 에러 - status: ${response.status}, error: ${errorText}`);
     // Firebase 미설정 시 빈 통계 반환
     if (response.status === 500) {
+      console.warn('[getStats] Firebase 미설정 또는 서버 오류로 빈 통계 반환');
       return {
         emotion_stats: [],
         topic_stats: [],
@@ -172,7 +176,10 @@ export async function getStats(userId: string, period: 'week' | 'month' = 'week'
     }
     throw new Error(`통계를 가져오는데 실패했습니다: ${errorText}`);
   }
-  return response.json();
+  
+  const data = await response.json();
+  console.log(`[getStats] 성공 - total_count: ${data.total_count}, emotion_stats: ${data.emotion_stats?.length || 0}개, topic_stats: ${data.topic_stats?.length || 0}개`);
+  return data;
 }
 
 /**
@@ -202,7 +209,10 @@ export async function getReport(userId: string, period: 'week' | 'month' = 'week
  * Log 추출 (주제, 감정 추출)
  */
 export async function extractLog(content: string): Promise<BackendLogExtractResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/log/extract`, {
+  const url = `${API_BASE_URL}/api/log/extract`;
+  console.log(`[extractLog] API 호출 시작 - content: ${content.substring(0, 50)}...`);
+  
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -212,10 +222,19 @@ export async function extractLog(content: string): Promise<BackendLogExtractResp
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Log 추출 API 에러:', response.status, errorText);
+    console.error(`[extractLog] API 에러 - status: ${response.status}, error: ${errorText}`);
     throw new Error(`Log 추출 실패: ${errorText}`);
   }
-  return response.json();
+  
+  const data = await response.json();
+  console.log(`[extractLog] API 응답 - topic: ${data.topic}, emotion: ${data.emotion}`);
+  
+  // 응답이 null인 경우 경고
+  if (!data.topic && !data.emotion) {
+    console.warn(`[extractLog] ⚠️ 추출 결과가 모두 null입니다. 백엔드 로그를 확인하세요.`);
+  }
+  
+  return data;
 }
 
 /**
@@ -265,8 +284,11 @@ export interface WeeklyReportResponse {
  * 최신 리포트 조회
  */
 export async function getLatestReport(userId: string): Promise<WeeklyReportResponse | null> {
+  const url = `${API_BASE_URL}/api/report/latest?user_id=${userId}`;
+  console.log(`[getLatestReport] API 호출 - URL: ${url}`);
+  
   try {
-    const response = await fetch(`${API_BASE_URL}/api/report/latest?user_id=${userId}`, {
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -275,15 +297,18 @@ export async function getLatestReport(userId: string): Promise<WeeklyReportRespo
 
     if (!response.ok) {
       if (response.status === 404) {
+        console.log(`[getLatestReport] 리포트 없음 - user_id: ${userId}`);
         return null; // 리포트가 없음
       }
       const errorText = await response.text();
-      console.error('리포트 조회 API 에러:', response.status, errorText);
+      console.error(`[getLatestReport] API 에러 - status: ${response.status}, error: ${errorText}`);
       return null; // 에러가 나도 null 반환 (있으면 표시하라는 요청)
     }
-    return response.json();
+    const data = await response.json();
+    console.log(`[getLatestReport] 성공 - user_id: ${userId}, report 존재: ${!!data.report}`);
+    return data;
   } catch (error) {
-    console.error('리포트 조회 실패:', error);
+    console.error(`[getLatestReport] 네트워크 에러 - user_id: ${userId}`, error);
     return null; // 에러가 나도 null 반환
   }
 }
@@ -328,9 +353,44 @@ export async function generateWeeklyReport(request: WeeklyReportRequest): Promis
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    console.error('리포트 생성 API 에러:', response.status, errorText);
-    throw new Error(`리포트 생성 실패: ${errorText}`);
+    let errorMessage = '리포트 생성에 실패했습니다.';
+    try {
+      const errorText = await response.text();
+      console.error('리포트 생성 API 에러:', response.status, errorText);
+      
+      // JSON 형식의 에러 메시지 파싱 시도
+      try {
+        const errorJson = JSON.parse(errorText);
+        
+        // detail이 배열인 경우 처리
+        if (Array.isArray(errorJson.detail)) {
+          errorMessage = errorJson.detail
+            .map((item: any) => {
+              if (typeof item === 'string') return item;
+              if (typeof item === 'object' && item !== null) {
+                return item.msg || item.message || JSON.stringify(item);
+              }
+              return String(item);
+            })
+            .join(', ');
+        } else if (errorJson.detail) {
+          errorMessage = String(errorJson.detail);
+        } else if (errorJson.message) {
+          errorMessage = String(errorJson.message);
+        } else {
+          errorMessage = errorText;
+        }
+      } catch {
+        // JSON이 아니면 원본 텍스트 사용
+        if (errorText && errorText.trim()) {
+          errorMessage = errorText.length > 200 ? errorText.substring(0, 200) + '...' : errorText;
+        }
+      }
+    } catch (e) {
+      console.error('에러 메시지 파싱 실패:', e);
+      errorMessage = `서버 오류 (${response.status})`;
+    }
+    throw new Error(errorMessage);
   }
   return response.json();
 }

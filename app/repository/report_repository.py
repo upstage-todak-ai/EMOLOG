@@ -90,6 +90,7 @@ class ReportRepository:
     
     def get_by_user_id(self, user_id: str, limit: Optional[int] = None) -> List[dict]:
         """사용자 ID로 리포트 목록 조회 (최신순)"""
+        logger.info(f"[get_by_user_id] 리포트 목록 조회 시작 - user_id={user_id}, limit={limit}")
         try:
             # order_by 없이 먼저 필터링
             query = self.collection.where(
@@ -106,6 +107,8 @@ class ReportRepository:
                 data["id"] = doc.id
                 reports.append(data)
             
+            logger.info(f"[get_by_user_id] Firestore 쿼리 결과 - 조회된 리포트 수: {len(reports)}개")
+            
             # 메모리에서 정렬 (created_at 기준 내림차순)
             reports.sort(key=lambda x: x.get("created_at", ""), reverse=True)
             
@@ -120,6 +123,9 @@ class ReportRepository:
                 resource_id=None,
             )
             
+            if len(reports) == 0:
+                logger.warning(f"[get_by_user_id] user_id={user_id}에 대한 리포트가 없습니다. Firestore에 해당 user_id로 저장된 리포트가 있는지 확인하세요.")
+            
             return reports
         except Exception as e:
             logger.error(f"[get_by_user_id] 리포트 조회 실패: {e}", exc_info=True)
@@ -127,8 +133,14 @@ class ReportRepository:
     
     def get_latest_by_user_id(self, user_id: str) -> Optional[dict]:
         """사용자의 최신 리포트 조회"""
+        logger.info(f"[get_latest_by_user_id] 리포트 조회 시작 - user_id={user_id}")
         reports = self.get_by_user_id(user_id, limit=1)
-        return reports[0] if reports else None
+        if reports:
+            logger.info(f"[get_latest_by_user_id] 리포트 조회 성공 - user_id={user_id}, report_id={reports[0].get('id', 'unknown')}")
+            return reports[0]
+        else:
+            logger.warning(f"[get_latest_by_user_id] 리포트 없음 - user_id={user_id}에 대한 리포트가 없습니다.")
+            return None
     
     def get_older_than(self, user_id: str, created_at: str) -> Optional[dict]:
         """

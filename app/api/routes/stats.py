@@ -40,7 +40,10 @@ def filter_by_period(diaries, period: Literal["week", "month"]):
     else:  # month
         cutoff_date = now - timedelta(days=30)
     
+    logger.debug(f"[filter_by_period] 기간 필터링 시작 - period={period}, cutoff_date={cutoff_date}, now={now}, 일기 수={len(diaries)}")
+    
     filtered = []
+    skipped_count = 0
     for diary in diaries:
         try:
             # date가 이미 datetime 객체인 경우
@@ -73,11 +76,13 @@ def filter_by_period(diaries, period: Literal["week", "month"]):
                             continue
                     else:
                         # 모든 형식 실패 시 로그하고 스킵
-                        logger.warning(f"일기 {diary.id}의 날짜 형식을 파싱할 수 없습니다: {date_str}")
+                        logger.warning(f"[filter_by_period] 일기 {diary.id}의 날짜 형식을 파싱할 수 없습니다: {date_str}")
+                        skipped_count += 1
                         continue
             else:
                 # 예상치 못한 타입
-                logger.warning(f"일기 {diary.id}의 날짜 타입이 예상과 다릅니다: {type(diary.date)}")
+                logger.warning(f"[filter_by_period] 일기 {diary.id}의 날짜 타입이 예상과 다릅니다: {type(diary.date)}, 값: {diary.date}")
+                skipped_count += 1
                 continue
             
             # timezone 정보 제거 후 비교
@@ -87,9 +92,11 @@ def filter_by_period(diaries, period: Literal["week", "month"]):
                 filtered.append(diary)
         except (ValueError, AttributeError, TypeError) as e:
             # 날짜 파싱 실패 시 로그하고 해당 일기는 스킵
-            logger.warning(f"일기 {diary.id}의 날짜 처리 실패: {diary.date}, 에러: {e}")
+            logger.warning(f"[filter_by_period] 일기 {diary.id}의 날짜 처리 실패: {diary.date}, 에러: {e}")
+            skipped_count += 1
             continue
     
+    logger.info(f"[filter_by_period] 필터링 완료 - 입력={len(diaries)}개, 필터링됨={len(filtered)}개, 스킵됨={skipped_count}개")
     return filtered
 
 
@@ -104,14 +111,28 @@ def get_stats(user_id: str, period: Literal["week", "month"] = "week"):
     - **period**: 기간 ("week" | "month")
     """
     start_time = time.time()
+    logger.info(f"[get_stats] 통계 조회 요청 - user_id={user_id}, period={period}")
     try:
         repository = get_diary_repository()
         all_diaries = repository.get_by_user_id(user_id)
+        logger.info(f"[get_stats] DB 조회 완료 - 전체일기={len(all_diaries)}개")
         
         # 기간별 필터링
+        logger.info(f"[get_stats] 기간 필터링 시작 - 전체일기={len(all_diaries)}개, period={period}")
+        if len(all_diaries) > 0:
+            # 첫 번째 일기의 날짜 형식 확인
+            first_diary = all_diaries[0]
+            logger.info(f"[get_stats] 첫 번째 일기 샘플 - id={first_diary.id}, date={first_diary.date}, date_type={type(first_diary.date)}")
+        
         filtered_diaries = filter_by_period(all_diaries, period)
         
         logger.info(f"[get_stats] 통계 조회 - user_id={user_id}, period={period}, 전체일기={len(all_diaries)}개, 필터링후={len(filtered_diaries)}개")
+        
+        if len(all_diaries) > 0 and len(filtered_diaries) == 0:
+            logger.warning(f"[get_stats] ⚠️ 경고: 전체 일기 {len(all_diaries)}개가 있지만 기간 필터링 후 0개가 되었습니다. 날짜 형식이나 기간 설정을 확인하세요.")
+            # 디버깅: 모든 일기의 날짜 확인
+            for i, diary in enumerate(all_diaries[:5]):  # 처음 5개만 확인
+                logger.info(f"[get_stats] 일기 {i+1} - id={diary.id}, date={diary.date}, date_type={type(diary.date)}")
         
         # 감정별 통계
         emotion_counter = Counter()

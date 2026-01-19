@@ -143,7 +143,9 @@ export const batchExtractMissingLogs = async (journals: JournalEntry[]): Promise
     
     if (needsExtraction && journal.content) {
       try {
+        console.log(`[batchExtractMissingLogs] 일기 ${journal.id} 추출 시작 - content: ${journal.content.substring(0, 50)}...`);
         const result = await extractLog(journal.content);
+        console.log(`[batchExtractMissingLogs] 일기 ${journal.id} 추출 결과 - topic: ${result.topic}, emotion: ${result.emotion}`);
         
         // 업데이트할 내용 준비
         const updates: Partial<Omit<JournalEntry, 'id' | 'createdAt' | 'updatedAt'>> = {};
@@ -163,12 +165,16 @@ export const batchExtractMissingLogs = async (journals: JournalEntry[]): Promise
             'EXHAUSTED': { label: '지침', icon: 'moon', color: '#a78bfa' },
           };
           updates.emotion = emotionMap[result.emotion] || journal.emotion;
+          console.log(`[batchExtractMissingLogs] 일기 ${journal.id} 감정 업데이트 - ${result.emotion} -> ${updates.emotion?.label}`);
+        } else {
+          console.warn(`[batchExtractMissingLogs] 일기 ${journal.id} 감정 추출 실패 - emotion이 null입니다.`);
         }
         
         await updateJournal(journal.id, updates);
         extractedCount++;
+        console.log(`[batchExtractMissingLogs] 일기 ${journal.id} 업데이트 완료`);
       } catch (error) {
-        console.error(`일기 ${journal.id} 추출 실패:`, error);
+        console.error(`[batchExtractMissingLogs] 일기 ${journal.id} 추출 실패:`, error);
       }
     }
   }

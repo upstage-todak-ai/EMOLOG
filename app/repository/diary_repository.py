@@ -93,12 +93,14 @@ class DiaryRepository:
     
     def get_by_user_id(self, user_id: str) -> List[DiaryEntry]:
         """사용자 ID로 일기 목록 조회"""
+        logger.info(f"[get_by_user_id] 일기 조회 시작 - user_id={user_id}")
         # 인덱스 없이도 동작하도록 필터링만 하고, 정렬은 메모리에서 수행
         query = self.collection.where(
             filter=FieldFilter("user_id", "==", user_id)
         )
         docs = query.stream()
         diaries = [self._doc_to_diary_entry(doc) for doc in docs]
+        logger.info(f"[get_by_user_id] Firestore 쿼리 결과 - 조회된 일기 수: {len(diaries)}개")
         # 메모리에서 날짜 기준 내림차순 정렬 (최신순)
         # date는 ISO 형식 문자열이므로 문자열 비교로 정렬 가능
         diaries.sort(key=lambda x: x.date, reverse=True)
@@ -109,6 +111,8 @@ class DiaryRepository:
             user_id=user_id,
             count=len(diaries)
         )
+        if len(diaries) == 0:
+            logger.warning(f"[get_by_user_id] user_id={user_id}에 대한 일기가 없습니다. Firestore에 해당 user_id로 저장된 일기가 있는지 확인하세요.")
         return diaries
     
     def update(self, diary_id: str, updates: DiaryEntryUpdate) -> Optional[DiaryEntry]:

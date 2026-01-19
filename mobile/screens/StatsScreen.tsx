@@ -6,7 +6,7 @@ import { getUserId } from '../services/userService';
 import { getAllJournals } from '../services/journalService';
 import { emotionLabelToBackend } from '../utils/journalConverter';
 import { saveReport, saveStats, getSavedReports, getSavedStats, SavedReport, SavedStats, hasCurrentMonthStats } from '../services/savedRecordsService';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 type Emotion = {
   label: string;
@@ -45,6 +45,7 @@ const TOPICS: Topic[] = [
 
 export default function StatsScreen({ onBack }: StatsScreenProps) {
   const [activeTab, setActiveTab] = useState<'current' | 'records'>('current'); // 탭 상태
+  const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month'>('week'); // 통계 기간 선택 (7일/30일)
   const [stats, setStats] = useState<{
     emotion_stats: Array<{ emotion: string; count: number }>;
     topic_stats: Array<{ topic: string; count: number }>;
@@ -63,29 +64,31 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<{ type: 'report' | 'stats'; data: SavedReport | SavedStats } | null>(null);
 
-  useEffect(() => {
-    loadStats();
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === 'records') {
-      loadRecords();
-    }
-  }, [activeTab]);
-
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       setLoading(true);
       const userId = await getUserId();
       if (!userId) {
+        console.error('[통계 로드] user_id가 설정되지 않았습니다.');
         throw new Error('user_id가 설정되지 않았습니다.');
       }
       
+      console.log(`[통계 로드] 시작 - userId: ${userId}, period: ${selectedPeriod}`);
+      
       // 통계와 리포트 병렬 로드
       const [statsData, latestReport] = await Promise.all([
-        getStats(userId, 'month').catch(() => null), // 에러가 나도 null
-        getLatestReport(userId), // 에러가 나도 null
+        getStats(userId, selectedPeriod).catch((error) => {
+          console.error('[통계 로드] getStats 실패:', error);
+          return null;
+        }),
+        getLatestReport(userId).catch((error) => {
+          console.error('[통계 로드] getLatestReport 실패:', error);
+          return null;
+        }),
       ]);
+      
+      console.log(`[통계 로드] 결과 - statsData:`, statsData ? `total_count=${statsData.total_count}` : 'null');
+      console.log(`[통계 로드] 결과 - latestReport:`, latestReport ? '있음' : 'null');
       
       // 통계 설정
       if (statsData) {
@@ -167,7 +170,17 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedPeriod]);
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
+
+  useEffect(() => {
+    if (activeTab === 'records') {
+      loadRecords();
+    }
+  }, [activeTab]);
 
   const handleGenerateReport = async () => {
     try {
@@ -244,7 +257,60 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
       Alert.alert('성공', '리포트가 생성되었습니다.');
     } catch (error) {
       console.error('리포트 생성 실패:', error);
-      Alert.alert('오류', `리포트 생성에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+      let errorMessage = '리포트 생성에 실패했습니다.';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        
+        // 중첩된 에러 메시지 정리
+        if (errorMessage.includes('리포트 생성 실패:')) {
+          errorMessage = errorMessage.replace('리포트 생성 실패:', '').trim();
+        }
+        
+        // [object Object] 패턴 제거
+        if (errorMessage.includes('[object Object]')) {
+          errorMessage = '서버에서 리포트 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+        }
+        
+        // JSON 형식의 에러 메시지에서 detail 추출 시도
+        if (errorMessage.startsWith('{') || errorMessage.startsWith('[')) {
+          try {
+            const errorJson = JSON.parse(errorMessage);
+            if (Array.isArray(errorJson)) {
+              errorMessage = errorJson
+                .map((item: any) => {
+                  if (typeof item === 'string') return item;
+                  if (typeof item === 'object' && item !== null) {
+                    return item.msg || item.message || '오류가 발생했습니다.';
+                  }
+                  return String(item);
+                })
+                .join(', ');
+            } else if (errorJson.detail) {
+              errorMessage = String(errorJson.detail);
+            } else if (errorJson.message) {
+              errorMessage = String(errorJson.message);
+            }
+          } catch {
+            // JSON 파싱 실패 시 기본 메시지 사용
+            errorMessage = '서버에서 리포트 생성 중 오류가 발생했습니다.';
+          }
+        }
+      } else {
+        // Error 객체가 아닌 경우
+        try {
+          errorMessage = JSON.stringify(error);
+        } catch {
+          errorMessage = '알 수 없는 오류가 발생했습니다.';
+        }
+      }
+      
+      // 에러 메시지가 너무 길면 자르기
+      if (errorMessage.length > 150) {
+        errorMessage = errorMessage.substring(0, 150) + '...';
+      }
+      
+      Alert.alert('오류', errorMessage);
     } finally {
       setGeneratingReport(false);
     }
@@ -306,7 +372,9 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
           <View>
             <Text style={styles.headerTitle}>통계 및 리포트</Text>
             <Text style={styles.headerSubtitle}>
-              {activeTab === 'current' ? '최근 1달' : '저장된 기록'}
+              {activeTab === 'current' 
+                ? (selectedPeriod === 'week' ? '최근 7일' : '최근 30일')
+                : '저장된 기록'}
             </Text>
           </View>
         </View>
@@ -435,12 +503,33 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
               </View>
             <Text style={styles.emptyTitle}>아직 데이터가 없어요</Text>
             <Text style={styles.emptySubtitle}>
-              감정 메모를 작성하면{'\n'}
-              통계와 레포트를 확인할 수 있습니다
+              {selectedPeriod === 'week' 
+                ? '최근 7일 동안 작성된 감정 메모가 없습니다.\n기간을 30일로 변경하거나 새로운 메모를 작성해보세요.'
+                : '최근 30일 동안 작성된 감정 메모가 없습니다.\n기간을 7일로 변경하거나 새로운 메모를 작성해보세요.'}
             </Text>
           </View>
         ) : (
           <>
+            {/* 기간 선택 버튼 - 항상 표시 */}
+            <View style={styles.periodSelectorContainer}>
+              <TouchableOpacity
+                style={[styles.statPeriodButton, selectedPeriod === 'week' && styles.statPeriodButtonActive]}
+                onPress={() => setSelectedPeriod('week')}
+              >
+                <Text style={[styles.statPeriodButtonText, selectedPeriod === 'week' && styles.statPeriodButtonTextActive]}>
+                  7일
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.statPeriodButton, selectedPeriod === 'month' && styles.statPeriodButtonActive]}
+                onPress={() => setSelectedPeriod('month')}
+              >
+                <Text style={[styles.statPeriodButtonText, selectedPeriod === 'month' && styles.statPeriodButtonTextActive]}>
+                  30일
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             {/* 통계 통합 박스 */}
             {(topicData.length > 0 || emotionData.length > 0) && (
               <View style={styles.statCard}>
@@ -974,7 +1063,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     backgroundColor: '#fff',
-    borderRadius: 20,
+    borderRadius: 8,
     padding: 14,
     marginBottom: 12,
     shadowColor: '#000',
@@ -1032,7 +1121,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 6,
     gap: 6,
     borderWidth: 1,
     borderColor: '#e2e8f0',
@@ -1055,7 +1144,7 @@ const styles = StyleSheet.create({
   },
   reportCard: {
     backgroundColor: '#fff',
-    borderRadius: 20,
+    borderRadius: 8,
     padding: 14,
     marginBottom: 12,
     shadowColor: '#000',
@@ -1147,8 +1236,34 @@ const styles = StyleSheet.create({
   periodButtonTextActive: {
     color: '#fff',
   },
+  periodSelectorContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  statPeriodButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  statPeriodButtonActive: {
+    backgroundColor: '#3B82F6',
+    borderColor: '#3B82F6',
+  },
+  statPeriodButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  statPeriodButtonTextActive: {
+    color: '#fff',
+  },
   reportContent: {
-    borderRadius: 16,
+    borderRadius: 8,
     padding: 20,
     marginBottom: 12,
   },

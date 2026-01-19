@@ -24,11 +24,13 @@ def get_latest_report(user_id: str):
     사용자의 최신 리포트를 조회합니다.
     """
     start_time = time.time()
+    logger.info(f"[get_latest_report] 리포트 조회 요청 - user_id={user_id}")
     try:
         report_repo = get_report_repository()
         latest_report = report_repo.get_latest_by_user_id(user_id)
         
         if not latest_report:
+            logger.warning(f"[get_latest_report] 리포트 없음 - user_id={user_id}")
             raise HTTPException(
                 status_code=404,
                 detail="리포트를 찾을 수 없습니다."

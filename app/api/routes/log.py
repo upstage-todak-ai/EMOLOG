@@ -20,6 +20,7 @@ def extract_log(request: LogExtractRequest):
     - **content**: 일기 내용
     """
     start_time = time.time()
+    logger.info(f"[extract_log] 추출 요청 - content_len={len(request.content) if request.content else 0}")
     try:
         if not request.content or not request.content.strip():
             duration_ms = (time.time() - start_time) * 1000
@@ -32,8 +33,10 @@ def extract_log(request: LogExtractRequest):
             )
             raise HTTPException(status_code=400, detail="일기 내용이 비어있습니다.")
         
+        logger.info(f"[extract_log] extract_topic_and_emotion 호출 시작 - content: {request.content[:100]}...")
         topic, emotion = extract_topic_and_emotion(request.content)
         duration_ms = (time.time() - start_time) * 1000
+        logger.info(f"[extract_log] 추출 완료 - topic={topic}, emotion={emotion.value if emotion else None}")
         
         log_api_request(
             logger,
