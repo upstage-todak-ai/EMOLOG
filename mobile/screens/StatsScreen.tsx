@@ -1,9 +1,10 @@
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, ActivityIndicator, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { getStats, getReport, generateWeeklyReport, getLatestReport, getPreviousReport, DiaryEntryForReport, Insight } from '../services/api';
+import { getStats, getReport, generateWeeklyReport, getLatestReport, getPreviousReport, DiaryEntryForReport, Insight, EmotionChange } from '../services/api';
 import { getUserId } from '../services/userService';
-import { getAllJournals } from '../services/journalService';
+import { getAllJournals, getJournalByDate } from '../services/journalService';
+import { JournalEntry, Emotion } from '../types/journal';
 import { emotionLabelToBackend } from '../utils/journalConverter';
 import { saveReport, saveStats, getSavedReports, getSavedStats, SavedReport, SavedStats, hasCurrentMonthStats } from '../services/savedRecordsService';
 import { useState, useEffect, useCallback } from 'react';
@@ -16,6 +17,7 @@ type Emotion = {
 
 type StatsScreenProps = {
   onBack: () => void;
+  onNavigateToJournalWrite?: (emotion: Emotion, date?: string, journal?: JournalEntry | null) => void;
 };
 
 // 감정 설정
@@ -43,7 +45,7 @@ const TOPICS: Topic[] = [
   { label: '일상', icon: 'calendar', color: '#64748b' },
 ];
 
-export default function StatsScreen({ onBack }: StatsScreenProps) {
+export default function StatsScreen({ onBack, onNavigateToJournalWrite }: StatsScreenProps) {
   const [activeTab, setActiveTab] = useState<'current' | 'records'>('current'); // 탭 상태
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month'>('week'); // 통계 기간 선택 (7일/30일)
   const [stats, setStats] = useState<{
@@ -51,13 +53,15 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
     topic_stats: Array<{ topic: string; count: number }>;
     total_count: number;
   } | null>(null);
-  const [report, setReport] = useState<{ title: string; content: string; insights?: Insight[]; created_at?: string; period_start?: string; period_end?: string } | null>(null);
+  const [report, setReport] = useState<{ title: string; content: string; insights?: Insight[]; created_at?: string; period_start?: string; period_end?: string; emotion_changes?: EmotionChange[] } | null>(null);
   const [isLatestReport, setIsLatestReport] = useState(true); // 현재 리포트가 최신인지 여부
   const [loading, setLoading] = useState(true);
   const [generatingReport, setGeneratingReport] = useState(false);
   const [showInsightsModal, setShowInsightsModal] = useState(false);
   const [selectedEvidenceDate, setSelectedEvidenceDate] = useState<string | null>(null);
   const [evidenceJournal, setEvidenceJournal] = useState<{ date: string; content: string } | null>(null);
+  const [selectedEmotionChange, setSelectedEmotionChange] = useState<EmotionChange | null>(null);
+  const [showEmotionChangeModal, setShowEmotionChangeModal] = useState(false);
   // 기록 페이지 관련 상태
   const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
   const [savedStats, setSavedStats] = useState<SavedStats[]>([]);
@@ -153,6 +157,7 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
           created_at: latestReport.created_at,
           period_start: latestReport.period_start,
           period_end: latestReport.period_end,
+          emotion_changes: latestReport.emotion_changes || [],
         });
         setIsLatestReport(true); // 최신 리포트 로드 시
       } else {
@@ -234,6 +239,7 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
       });
 
       // 리포트 업데이트
+      console.log(`[리포트 생성] 결과 - emotion_changes:`, result.emotion_changes?.length || 0);
       setReport({
         title: '감정 레포트',
         content: result.report || '리포트 생성에 실패했습니다.',
@@ -241,6 +247,7 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
         created_at: result.created_at,
         period_start: result.period_start,
         period_end: result.period_end,
+        emotion_changes: result.emotion_changes || [],
       });
       setIsLatestReport(true); // 새로 생성된 리포트는 최신
       
@@ -256,6 +263,7 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
             created_at: latestReport.created_at,
             period_start: latestReport.period_start,
             period_end: latestReport.period_end,
+            emotion_changes: latestReport.emotion_changes || [],
           });
           setIsLatestReport(true);
         }
@@ -622,6 +630,7 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
                               created_at: previousReport.created_at,
                               period_start: previousReport.period_start,
                               period_end: previousReport.period_end,
+                              emotion_changes: previousReport.emotion_changes || [],
                             });
                             setIsLatestReport(false); // 이전 리포트를 보면 더 이상 최신이 아님
                           } else {
@@ -654,6 +663,7 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
                               created_at: latestReport.created_at,
                               period_start: latestReport.period_start,
                               period_end: latestReport.period_end,
+                              emotion_changes: latestReport.emotion_changes || [],
                             });
                             setIsLatestReport(true);
                           } else {
@@ -701,6 +711,35 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
                     <ActivityIndicator size="large" color="#8B5CF6" />
                     <Text style={styles.reportLoadingText}>리포트 생성 중...</Text>
                   </View>
+                ) : report?.emotion_changes && report.emotion_changes.length > 0 ? (
+                  <>
+                    {/* 감정 변화 박스들 */}
+                    {report.emotion_changes.map((change, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={styles.emotionChangeBox}
+                        onPress={() => {
+                          setSelectedEmotionChange(change);
+                          setShowEmotionChangeModal(true);
+                        }}
+                      >
+                        {/* 감정 변화 이모지 */}
+                        <View style={styles.emotionChangeEmojiRow}>
+                          <Text style={styles.emotionChangeEmoji}>{change.start_emotion_emoji}</Text>
+                          <Text style={styles.emotionChangeArrow}>→</Text>
+                          <Text style={styles.emotionChangeEmoji}>{change.end_emotion_emoji}</Text>
+                        </View>
+                        {/* 키워드 */}
+                        <View style={styles.emotionChangeKeywords}>
+                          {change.keywords.map((keyword, keyIndex) => (
+                            <View key={keyIndex} style={styles.emotionChangeKeywordTag}>
+                              <Text style={styles.emotionChangeKeywordText}>[{keyword}]</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </>
                 ) : report?.content ? (
                   <>
                     {/* 한줄요약 (리포트 첫 줄) */}
@@ -728,7 +767,8 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
                 )}
               </LinearGradient>
 
-              {report?.insights && report.insights.length > 0 && (
+              {/* 감정 변화 박스가 있을 때는 근거 버튼 표시 안 함 (박스 클릭 시 모달에서 표시) */}
+              {report?.insights && report.insights.length > 0 && (!report?.emotion_changes || report.emotion_changes.length === 0) && (
                 <TouchableOpacity
                   style={styles.insightsButton}
                   onPress={() => setShowInsightsModal(true)}
@@ -762,31 +802,31 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
             </View>
             <ScrollView style={styles.modalScrollView}>
               {report?.insights && report.insights.length > 0 ? (
-                <>
-                  {report.insights.map((insight, index) => (
-                    <View key={index} style={styles.insightItem}>
-                      {/* 자연어 1줄 요약과 날짜 버튼을 같은 줄에 배치 */}
-                      <View style={styles.insightRow}>
-                        <Text style={styles.insightSummary}>
-                          {insight.summary || insight.description}
-                        </Text>
-                        {/* 날짜를 [1] [2] 형태로 텍스트 옆에 표시 */}
-                        {insight.date_references && insight.date_references.length > 0 && (
-                          <View style={styles.insightDateButtons}>
-                            {insight.date_references.map((date, dateIndex) => (
-                              <TouchableOpacity
-                                key={dateIndex}
-                                style={styles.insightDateButton}
-                                onPress={async () => {
-                                  try {
-                                    const journals = await getAllJournals();
-                                    const journal = journals.find(j => j.date === date);
-                                    if (journal && journal.content) {
-                                      Alert.alert(
-                                        date,
-                                        journal.content,
-                                        [{ text: '확인', style: 'default' }]
-                                      );
+                  <>
+                    {report.insights.map((insight, index) => (
+                      <View key={index} style={styles.insightItem}>
+                        {/* 자연어 1줄 요약과 날짜 버튼을 같은 줄에 배치 */}
+                        <View style={styles.insightRow}>
+                          <Text style={styles.insightSummary}>
+                            {insight.summary || insight.description}
+                          </Text>
+                          {/* 날짜를 [1] [2] 형태로 텍스트 옆에 표시 */}
+                          {insight.date_references && insight.date_references.length > 0 && (
+                            <View style={styles.insightDateButtons}>
+                              {insight.date_references.map((date, dateIndex) => (
+                                <TouchableOpacity
+                                  key={dateIndex}
+                                  style={styles.insightDateButton}
+                                  onPress={async () => {
+                                    try {
+                                      const journals = await getAllJournals();
+                                      const journal = journals.find(j => j.date === date);
+                                      if (journal && journal.content) {
+                                        Alert.alert(
+                                          date,
+                                          journal.content,
+                                          [{ text: '확인', style: 'default' }]
+                                        );
                                     } else {
                                       Alert.alert('알림', '해당 날짜의 메모를 찾을 수 없습니다.');
                                     }
@@ -821,6 +861,10 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
           onRequestClose={() => {
             setEvidenceJournal(null);
             setSelectedEvidenceDate(null);
+            // 근거 메모 모달을 닫을 때 감정 변화 모달 다시 열기 (원래 보고 있던 경우)
+            if (selectedEmotionChange) {
+              setShowEmotionChangeModal(true);
+            }
           }}
         >
           <View style={styles.modalOverlay}>
@@ -831,6 +875,10 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
                   onPress={() => {
                     setEvidenceJournal(null);
                     setSelectedEvidenceDate(null);
+                    // 근거 메모 모달을 닫을 때 감정 변화 모달 다시 열기 (원래 보고 있던 경우)
+                    if (selectedEmotionChange) {
+                      setShowEmotionChangeModal(true);
+                    }
                   }}
                   style={styles.modalCloseButton}
                 >
@@ -842,6 +890,129 @@ export default function StatsScreen({ onBack }: StatsScreenProps) {
                   <>
                     <Text style={styles.evidenceDateLabel}>{evidenceJournal.date}</Text>
                     <Text style={styles.evidenceContent}>{evidenceJournal.content}</Text>
+                  </>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* 감정 변화 상세 모달 */}
+        <Modal
+          visible={showEmotionChangeModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => {
+            setShowEmotionChangeModal(false);
+            setSelectedEmotionChange(null);
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>감정 변화 리포트</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowEmotionChangeModal(false);
+                    setSelectedEmotionChange(null);
+                  }}
+                  style={styles.modalCloseButton}
+                >
+                  <Ionicons name="close" size={24} color="#64748b" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.modalScrollView}>
+                {selectedEmotionChange && (
+                  <>
+                    {/* 감정 변화 이모지 */}
+                    <View style={styles.emotionChangeModalEmojiRow}>
+                      <Text style={styles.emotionChangeModalEmoji}>{selectedEmotionChange.start_emotion_emoji}</Text>
+                      <Text style={styles.emotionChangeModalArrow}>→</Text>
+                      <Text style={styles.emotionChangeModalEmoji}>{selectedEmotionChange.end_emotion_emoji}</Text>
+                    </View>
+                    
+                    {/* 리포트 내용 */}
+                    {selectedEmotionChange.report && (
+                      <>
+                        {selectedEmotionChange.report.title && (
+                          <Text style={styles.emotionChangeReportTitle}>{selectedEmotionChange.report.title}</Text>
+                        )}
+                        {selectedEmotionChange.report.body && (
+                          <Text style={styles.emotionChangeReportBody}>{selectedEmotionChange.report.body}</Text>
+                        )}
+                        {selectedEmotionChange.report.conclusion && (
+                          <Text style={styles.emotionChangeReportConclusion}>{selectedEmotionChange.report.conclusion}</Text>
+                        )}
+                      </>
+                    )}
+                    
+                    {/* 근거 섹션 */}
+                    {selectedEmotionChange.related_entries && selectedEmotionChange.related_entries.length > 0 && (
+                      <>
+                        <View style={styles.modalEvidenceSection}>
+                          <Text style={styles.modalEvidenceTitle}>이 메모들을 바탕으로 작성됐어요!</Text>
+                          {selectedEmotionChange.related_entries.map((entry, index) => (
+                            <TouchableOpacity
+                              key={index}
+                              style={styles.insightItemClickable}
+                              activeOpacity={0.7}
+                              onPress={async () => {
+                                // 감정 변화 모달 닫기
+                                setShowEmotionChangeModal(false);
+                                
+                                // 해당 날짜의 일기 찾기
+                                if (onNavigateToJournalWrite) {
+                                  try {
+                                    const journal = await getJournalByDate(entry.date);
+                                    
+                                    // 감정 정보 추출
+                                    let emotion: Emotion = EMOTIONS[1]; // 기본값: 평온
+                                    
+                                    if (journal && journal.emotion) {
+                                      // 일기에 감정이 있으면 그것 사용
+                                      emotion = journal.emotion;
+                                    } else if (entry.emotion) {
+                                      // 백엔드 감정 코드를 한국어로 변환
+                                      const emotionCodeMap: Record<string, string> = {
+                                        'JOY': '기쁨',
+                                        'CALM': '평온',
+                                        'SADNESS': '슬픔',
+                                        'ANGER': '화남',
+                                        'ANXIETY': '불안',
+                                        'EXHAUSTED': '지침',
+                                      };
+                                      
+                                      const emotionLabel = emotionCodeMap[entry.emotion] || entry.emotion;
+                                      const foundEmotion = EMOTIONS.find(e => e.label === emotionLabel);
+                                      if (foundEmotion) {
+                                        emotion = foundEmotion;
+                                      }
+                                    }
+                                    
+                                    // 일기 작성 화면으로 이동
+                                    onNavigateToJournalWrite(emotion, entry.date, journal || null);
+                                  } catch (error) {
+                                    console.error('일기 조회 실패:', error);
+                                    Alert.alert('오류', '일기를 불러오는데 실패했습니다.');
+                                  }
+                                } else {
+                                  Alert.alert('알림', '일기 화면으로 이동할 수 없습니다.');
+                                }
+                              }}
+                            >
+                              <View style={styles.entryHeader}>
+                                <Text style={styles.evidenceDateLabel}>{entry.date}</Text>
+                                <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+                              </View>
+                              <Text style={styles.evidenceContentPreview} numberOfLines={3}>
+                                {entry.content}
+                              </Text>
+                              <Text style={styles.entryClickHintText}>탭하여 전체 내용 보기</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </>
+                    )}
                   </>
                 )}
               </ScrollView>
@@ -1362,6 +1533,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e5e7eb',
   },
+  insightItemClickable: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    borderColor: '#e5e7eb',
+  },
   insightRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1524,6 +1709,100 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     color: '#4f46e5',
+  },
+  emotionChangeBox: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  emotionChangeEmojiRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  emotionChangeEmoji: {
+    fontSize: 32,
+  },
+  emotionChangeArrow: {
+    fontSize: 20,
+    color: '#64748b',
+    marginHorizontal: 12,
+  },
+  emotionChangeKeywords: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  emotionChangeKeywordTag: {
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  emotionChangeKeywordText: {
+    fontSize: 14,
+    color: '#4f46e5',
+    fontWeight: '500',
+  },
+  emotionChangeModalEmojiRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  emotionChangeModalEmoji: {
+    fontSize: 40,
+  },
+  emotionChangeModalArrow: {
+    fontSize: 24,
+    color: '#64748b',
+    marginHorizontal: 16,
+  },
+  emotionChangeReportTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  emotionChangeReportBody: {
+    fontSize: 15,
+    color: '#334155',
+    lineHeight: 24,
+    marginBottom: 16,
+  },
+  emotionChangeReportConclusion: {
+    fontSize: 15,
+    color: '#334155',
+    lineHeight: 24,
+    fontStyle: 'italic',
+  },
+  entryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  evidenceContentPreview: {
+    fontSize: 14,
+    color: '#475569',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  entryClickHintText: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginTop: 4,
   },
   tabContainer: {
     flexDirection: 'row',

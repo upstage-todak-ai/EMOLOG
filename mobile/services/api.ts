@@ -269,6 +269,37 @@ export interface Insight {
 }
 
 /**
+ * 감정 변화 리포트
+ */
+export interface EmotionChangeReport {
+  title: string;
+  body: string;
+  conclusion: string;
+}
+
+/**
+ * 감정 변화 데이터
+ */
+export interface EmotionChange {
+  start_emotion: string;
+  end_emotion: string;
+  start_emotion_emoji: string;
+  end_emotion_emoji: string;
+  start_emotion_korean: string;
+  end_emotion_korean: string;
+  keywords: string[];
+  date_references: string[];
+  description: string;
+  report: EmotionChangeReport;
+  related_entries: Array<{
+    date: string;
+    content: string;
+    topic: string;
+    emotion: string;
+  }>;
+}
+
+/**
  * 리포트 생성 응답
  */
 export interface WeeklyReportResponse {
@@ -278,6 +309,7 @@ export interface WeeklyReportResponse {
   period_end: string;
   insights: Insight[];
   created_at?: string; // 리포트 생성 일시 (ISO 형식)
+  emotion_changes?: EmotionChange[]; // 감정 변화 리스트
 }
 
 /**

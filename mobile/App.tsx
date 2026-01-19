@@ -220,7 +220,15 @@ export default function App() {
   if (currentScreen === 'stats') {
     return (
       <>
-        <StatsScreen onBack={() => setCurrentScreen('home')} />
+        <StatsScreen 
+          onBack={() => setCurrentScreen('home')}
+          onNavigateToJournalWrite={(emotion: Emotion, date?: string, journal?: JournalEntry | null) => {
+            setSelectedEmotion(emotion);
+            setSelectedDate(date);
+            setExistingJournal(journal || null);
+            setCurrentScreen('journalWrite');
+          }}
+        />
         <NotificationModal />
       </>
     );

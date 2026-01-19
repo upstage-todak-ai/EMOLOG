@@ -192,3 +192,4 @@ class ReportResponse(BaseModel):
     period_end: str  # 리포트 기간 종료일
     insights: Optional[List[dict]] = []  # 추출된 인사이트 리스트
     created_at: Optional[str] = None  # 리포트 생성 일시 (ISO 형식)
+    emotion_changes: Optional[List[dict]] = []  # 감정 변화 리스트 (각 변화에 대한 리포트 포함)

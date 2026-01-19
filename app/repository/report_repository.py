@@ -26,7 +26,7 @@ class ReportRepository:
         except Exception as e:
             raise ValueError(f"Firestore 연결 실패: {str(e)}. Firebase 설정을 확인해주세요.")
     
-    def create(self, user_id: str, report: str, summary: str, period_start: str, period_end: str, insights: List[dict], eval_score: float, attempt: int) -> dict:
+    def create(self, user_id: str, report: str, summary: str, period_start: str, period_end: str, insights: List[dict], eval_score: float, attempt: int, emotion_changes: Optional[List[dict]] = None) -> dict:
         """
         리포트 생성
         
@@ -39,6 +39,7 @@ class ReportRepository:
             insights: 인사이트 리스트
             eval_score: 평가 점수
             attempt: 시도 횟수
+            emotion_changes: 감정 변화 리스트 (선택)
         
         Returns:
             생성된 리포트 딕셔너리 (id 포함)
@@ -54,6 +55,9 @@ class ReportRepository:
             "attempt": attempt,
             "created_at": datetime.now().isoformat(),
         }
+        
+        if emotion_changes is not None:
+            report_dict["emotion_changes"] = emotion_changes
         
         update_time, doc_ref = self.collection.add(report_dict)
         

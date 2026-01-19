@@ -13,6 +13,7 @@ from app.services.report.report_insights import analyze_diary_data, find_insight
 from app.services.report.report_writer import write_report
 from app.services.report.report_judge import evaluate_report
 from app.services.report.report_insight_writer import summarize_insights_batch
+from app.services.report.report_emotion_changes import analyze_emotion_changes, generate_emotion_change_report
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -143,9 +144,46 @@ def generate_weekly_report(
         
         logger.info(f"[generate_weekly_report] 시도 {attempt + 1} 평가 결과 - 종합점수: {eval_result['overall_score']:.2f}, 수용가능: {eval_result['is_acceptable']}")
         
-        # 수용 가능하면 즉시 반환
+        # 수용 가능하면 감정 변화 분석 및 리포트 생성 후 반환
         if eval_result["is_acceptable"]:
             logger.info(f"[generate_weekly_report] ✅ 수용 가능한 리포트 생성 완료 (시도 {attempt + 1})")
+            
+            # 감정 변화 분석 및 각 변화에 대한 리포트 생성
+            emotion_changes_data = []
+            try:
+                logger.info(f"[generate_weekly_report] 감정 변화 분석 시작...")
+                emotion_changes = analyze_emotion_changes(diary_entries, original_insights)
+                
+                for change in emotion_changes:
+                    logger.info(f"[generate_weekly_report] 감정 변화 리포트 생성 중: {change.get('start_emotion_korean')} -> {change.get('end_emotion_korean')}")
+                    change_report = generate_emotion_change_report(
+                        change, diary_entries, period_start, period_end
+                    )
+                    
+                    # 관련 일기 항목 필터링 (근거용)
+                    date_refs = change.get("date_references", [])
+                    related_entries = [
+                        {
+                            "date": entry.get("date"),
+                            "content": entry.get("content", ""),
+                            "topic": entry.get("topic", ""),
+                            "emotion": entry.get("emotion", "")
+                        }
+                        for entry in diary_entries
+                        if entry.get("date") in date_refs
+                    ]
+                    
+                    emotion_changes_data.append({
+                        **change,
+                        "report": change_report,
+                        "related_entries": related_entries  # 근거용 일기 항목들
+                    })
+                
+                logger.info(f"[generate_weekly_report] 감정 변화 리포트 {len(emotion_changes_data)}개 생성 완료")
+            except Exception as e:
+                logger.warning(f"[generate_weekly_report] 감정 변화 분석 실패 (리포트는 반환): {e}", exc_info=True)
+                emotion_changes_data = []
+            
             return {
                 "report": report,
                 "summary": summary,
@@ -153,7 +191,8 @@ def generate_weekly_report(
                 "period_end": period_end,
                 "insights": final_insights,  # 요약된 인사이트 반환 (DB 저장용)
                 "eval_score": eval_result["overall_score"],
-                "attempt": attempt + 1
+                "attempt": attempt + 1,
+                "emotion_changes": emotion_changes_data  # 감정 변화 데이터 추가
             }
         
         # 마지막 시도가 아니면 재작성
@@ -164,6 +203,43 @@ def generate_weekly_report(
     if candidates:
         best_candidate = max(candidates, key=lambda x: x["eval"]["overall_score"])
         logger.warning(f"[generate_weekly_report] ⚠️ 수용 기준 미달, 최고 점수 리포트 반환 (점수: {best_candidate['eval']['overall_score']:.2f})")
+        
+        # 감정 변화 분석 및 리포트 생성 (수용 기준 미달이어도 생성)
+        emotion_changes_data = []
+        try:
+            logger.info(f"[generate_weekly_report] 감정 변화 분석 시작 (최고 점수 리포트)...")
+            emotion_changes = analyze_emotion_changes(diary_entries, original_insights)
+            
+            for change in emotion_changes:
+                logger.info(f"[generate_weekly_report] 감정 변화 리포트 생성 중: {change.get('start_emotion_korean')} -> {change.get('end_emotion_korean')}")
+                change_report = generate_emotion_change_report(
+                    change, diary_entries, period_start, period_end
+                )
+                
+                # 관련 일기 항목 필터링 (근거용)
+                date_refs = change.get("date_references", [])
+                related_entries = [
+                    {
+                        "date": entry.get("date"),
+                        "content": entry.get("content", ""),
+                        "topic": entry.get("topic", ""),
+                        "emotion": entry.get("emotion", "")
+                    }
+                    for entry in diary_entries
+                    if entry.get("date") in date_refs
+                ]
+                
+                emotion_changes_data.append({
+                    **change,
+                    "report": change_report,
+                    "related_entries": related_entries
+                })
+            
+            logger.info(f"[generate_weekly_report] 감정 변화 리포트 {len(emotion_changes_data)}개 생성 완료")
+        except Exception as e:
+            logger.warning(f"[generate_weekly_report] 감정 변화 분석 실패 (리포트는 반환): {e}", exc_info=True)
+            emotion_changes_data = []
+        
         return {
             "report": best_candidate["report"],
             "summary": best_candidate["summary"],
@@ -171,7 +247,8 @@ def generate_weekly_report(
             "period_end": period_end,
             "insights": final_insights,  # 요약된 인사이트 반환
             "eval_score": best_candidate["eval"]["overall_score"],
-            "attempt": best_candidate["attempt"]
+            "attempt": best_candidate["attempt"],
+            "emotion_changes": emotion_changes_data  # 감정 변화 데이터 추가
         }
     
     # 모든 시도 실패
@@ -183,5 +260,6 @@ def generate_weekly_report(
         "period_end": period_end,
         "insights": final_insights if 'final_insights' in locals() else original_insights,  # 요약된 인사이트 반환
         "eval_score": 0.0,
-        "attempt": 1 + max_retries
+        "attempt": 1 + max_retries,
+        "emotion_changes": []  # 감정 변화 데이터 없음
     }

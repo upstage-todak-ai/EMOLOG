@@ -59,7 +59,8 @@ def get_latest_report(user_id: str):
             period_start=latest_report.get("period_start", ""),
             period_end=latest_report.get("period_end", ""),
             insights=latest_report.get("insights", []),
-            created_at=latest_report.get("created_at")
+            created_at=latest_report.get("created_at"),
+            emotion_changes=latest_report.get("emotion_changes", [])
         )
         
     except HTTPException:
@@ -135,7 +136,8 @@ def get_previous_report(user_id: str, created_at: str):
             period_start=previous_report.get("period_start", ""),
             period_end=previous_report.get("period_end", ""),
             insights=previous_report.get("insights", []),
-            created_at=previous_report.get("created_at")
+            created_at=previous_report.get("created_at"),
+            emotion_changes=previous_report.get("emotion_changes", [])
         )
         
     except HTTPException:
@@ -218,6 +220,7 @@ def create_weekly_report(request: ReportRequest):
         # 리포트를 DB에 저장 (인사이트 요약 포함)
         try:
             insights_to_save = result.get("insights", [])
+            emotion_changes_to_save = result.get("emotion_changes", [])
             report_repo = get_report_repository()
             saved_report = report_repo.create(
                 user_id=request.user_id,
@@ -227,7 +230,8 @@ def create_weekly_report(request: ReportRequest):
                 period_end=result["period_end"],
                 insights=insights_to_save,
                 eval_score=result.get("eval_score", 0.0),
-                attempt=result.get("attempt", 0)
+                attempt=result.get("attempt", 0),
+                emotion_changes=emotion_changes_to_save if emotion_changes_to_save else None
             )
             logger.info(f"[create_weekly_report] 리포트 DB 저장 완료 - report_id={saved_report.get('id')}, user_id={request.user_id}, insights_count={len(saved_report.get('insights', []))}")
         except ValueError as e:
@@ -261,7 +265,8 @@ def create_weekly_report(request: ReportRequest):
             period_start=result["period_start"],
             period_end=result["period_end"],
             insights=result.get("insights", []),
-            created_at=created_at
+            created_at=created_at,
+            emotion_changes=result.get("emotion_changes", [])
         )
         
     except ValueError as e:
